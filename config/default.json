@@ -13,7 +13,6 @@
   "cleaning": {
     "removeEmptyRows": true,
     "removeDuplicates": true,
-    "normalizeWhitespace": true,
-    "fixEncoding": true
+    "normalizeWhitespace": true
   }
 }
