@@ -10,7 +10,7 @@ interface ExportModalProps {
 }
 
 const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => {
-  const { fileMeta, columns, fetchRows } = useDataStore();
+  const { fileMeta, columns, fetchRows, markExported } = useDataStore();
   const [options, setOptions] = useState<ExportOptions>(DEFAULT_EXPORT_OPTIONS);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -29,6 +29,7 @@ const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => {
     // Fetch ALL rows for export (not just the view)
     const allRows = await fetchRows(1000000); // 1M limit for V1
     await generateExport(allRows, columns, options);
+    markExported(); // Mark as safe
     setIsExporting(false);
     onClose();
   };

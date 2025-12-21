@@ -1,7 +1,8 @@
 import { create } from 'zustand';
-import { initDuckDB, ingestCSV, query } from '../services/duckdb';
+import { initDuckDB, ingestCSV, query, registerFile } from '../services/duckdb';
 import { useMascotStore } from './mascotStore';
 import { useErrorStore } from './errorStore';
+import { useViewStore } from './viewStore';
 import { MASCOT_STATES } from '../lib/constants';
 
 interface Column {
@@ -36,13 +37,20 @@ interface DataStore {
   
   selectedColumn: string | null;
   columnStats: ColumnStats | null;
-  
+  searchQuery: string;
+  sortConfig: { column: string; direction: 'ASC' | 'DESC' } | null;
+  hasUnsavedChanges: boolean;
+
   // Diff State
   diffReport: {
     added: number;
     removed: number;
     rowsAdded: any[];
     rowsRemoved: any[];
+    schemaMismatch?: {
+      columnsInV1Only: string[];
+      columnsInV2Only: string[];
+    };
   } | null;
 
   initializeEngine: () => Promise<void>;
@@ -52,9 +60,15 @@ interface DataStore {
   executeMutation: (sql: string) => Promise<void>;
   selectColumn: (colName: string | null) => Promise<void>;
   fetchRows: (limit?: number) => Promise<any[]>;
+  queryResult: (sql: string) => Promise<any[]>;
   clearDiff: () => void;
   prepareForCloud: (hiddenCols: string[]) => Promise<any[]>;
   reconcileCloud: (processedData: any[]) => Promise<void>;
+  setSearchQuery: (query: string) => Promise<void>;
+  setSort: (column: string) => Promise<void>;
+  fetchCurrentView: () => Promise<void>;
+  resetData: () => Promise<void>;
+  markExported: () => void;
 }
 
 const classifyError = (e: any): string => {
@@ -62,6 +76,7 @@ const classifyError = (e: any): string => {
   if (msg.includes("syntax error") || msg.includes("parser error")) return "DB_001";
   if (msg.includes("table") && msg.includes("not found")) return "DB_002";
   if (msg.includes("mismatch") || msg.includes("type")) return "DB_003";
+  if (msg.includes("structure") || msg.includes("colonnes")) return "LOGIC_001"; // Logic/Schema error
   if (msg.includes("fetch") || msg.includes("network")) return "NET_001";
   if (msg.includes("file") || msg.includes("permission")) return "IO_001";
   return "UNKNOWN";
@@ -77,6 +92,65 @@ export const useDataStore = create<DataStore>((set, get) => ({
   selectedColumn: null,
   columnStats: null,
   diffReport: null,
+  searchQuery: '',
+  sortConfig: null,
+  hasUnsavedChanges: false,
+
+  fetchCurrentView: async () => {
+    const state = get();
+    if (!state.fileMeta) return;
+
+    try {
+      let sql = `SELECT * FROM current_dataset`;
+      const clauses: string[] = [];
+
+      // 1. Search Query
+      if (state.searchQuery.trim()) {
+        const q = state.searchQuery.replace(/'/g, "''");
+        const conditions = state.columns
+          .map(col => `CAST("${col.name}" AS VARCHAR) ILIKE '%${q}%'`)
+          .join(' OR ');
+        clauses.push(`(${conditions})`);
+      }
+
+      // 2. Rules Engine
+      const { rules } = useViewStore.getState();
+      const activeRules = rules.filter(r => r.active && r.column).sort((a, b) => a.priority - b.priority);
+      
+      activeRules.forEach(rule => {
+        const col = `"${rule.column}"`;
+        const val = rule.value.replace(/'/g, "''");
+        
+        switch (rule.operator) {
+          case 'equals': clauses.push(`${col} = '${val}'`); break;
+          case 'not_equals': clauses.push(`${col} != '${val}'`); break;
+          case 'contains': clauses.push(`CAST(${col} AS VARCHAR) ILIKE '%${val}%'`); break;
+          case 'not_contains': clauses.push(`CAST(${col} AS VARCHAR) NOT ILIKE '%${val}%'`); break;
+          case 'greater_than': clauses.push(`${col} > '${val}'`); break;
+          case 'less_than': clauses.push(`${col} < '${val}'`); break;
+          case 'starts_with': clauses.push(`CAST(${col} AS VARCHAR) ILIKE '${val}%'`); break;
+          case 'ends_with': clauses.push(`CAST(${col} AS VARCHAR) ILIKE '%${val}'`); break;
+          case 'is_empty': clauses.push(`(${col} IS NULL OR CAST(${col} AS VARCHAR) = '')`); break;
+          case 'is_not_empty': clauses.push(`(${col} IS NOT NULL AND CAST(${col} AS VARCHAR) != '')`); break;
+        }
+      });
+
+      if (clauses.length > 0) {
+        sql += ` WHERE ${clauses.join(' AND ')}`;
+      }
+
+      if (state.sortConfig) {
+        sql += ` ORDER BY "${state.sortConfig.column}" ${state.sortConfig.direction}`;
+      }
+
+      sql += ` LIMIT 100`;
+      
+      const results = await query(sql);
+      set({ rows: results });
+    } catch (e) {
+      console.error("View Fetch Error", e);
+    }
+  },
 
   initializeEngine: async () => {
     try {
@@ -114,7 +188,8 @@ export const useDataStore = create<DataStore>((set, get) => ({
         isLoading: false,
         selectedColumn: null,
         columnStats: null,
-        diffReport: null
+        diffReport: null,
+        hasUnsavedChanges: false
       });
 
       mascot.setMascot(MASCOT_STATES.SLEEPING, `Prêt ! ${result.rowCount} lignes chargées.`);
@@ -128,20 +203,59 @@ export const useDataStore = create<DataStore>((set, get) => ({
 
   loadComparisonFile: async (file: File) => {
      const mascot = useMascotStore.getState();
-     set({ isLoading: true });
+     const state = get();
+     
+     // Reset previous diff state immediately
+     set({ diffReport: null, isLoading: true });
+
+     // 1. Identical File Check (Name & Size)
+     if (file.name === state.fileMeta?.name && file.size === state.fileMeta?.size) {
+        mascot.setMascot(MASCOT_STATES.DETECTIVE, "Attention : Ces fichiers semblent identiques (Nom/Taille).");
+     }
+
+     mascot.setMascot(MASCOT_STATES.DETECTIVE, `Comparaison avec ${file.name}...`);
      mascot.setMascot(MASCOT_STATES.DETECTIVE, `Comparaison avec ${file.name}...`);
  
      try {
        const { conn } = await initDuckDB();
        if (!conn) throw new Error("DB not ready");
  
+       // Register comparison file
        await conn.query(`DROP TABLE IF EXISTS comparison_dataset`);
        
-       const { db } = await initDuckDB();
-       if (db) await db.registerFileHandle('comparison_file', file, 4, true);
+       const fileName = await registerFile(file);
        
-       await conn.query(`CREATE TABLE comparison_dataset AS SELECT * FROM read_csv_auto('comparison_file')`);
- 
+       await conn.query(`CREATE TABLE comparison_dataset AS SELECT * FROM read_csv_auto('${fileName}')`);
+       
+       // 2. Schema Check
+       const schema1 = await query(`PRAGMA table_info('current_dataset')`);
+       const schema2 = await query(`PRAGMA table_info('comparison_dataset')`);
+       
+       const cols1 = schema1.map((c: any) => c.name);
+       const cols2 = schema2.map((c: any) => c.name);
+       
+       const inV1Only = cols1.filter(c => !cols2.includes(c));
+       const inV2Only = cols2.filter(c => !cols1.includes(c));
+
+       if (inV1Only.length > 0 || inV2Only.length > 0) {
+         set({
+           diffReport: {
+             added: 0,
+             removed: 0,
+             rowsAdded: [],
+             rowsRemoved: [],
+             schemaMismatch: {
+               columnsInV1Only: inV1Only,
+               columnsInV2Only: inV2Only
+             }
+           },
+           isLoading: false
+         });
+         mascot.setMascot(MASCOT_STATES.DETECTIVE, "Attention : Les structures sont différentes.");
+         return;
+       }
+
+       // 3. Run Diff (Only if schema matches)
        const addedRes = await query(`SELECT * FROM comparison_dataset EXCEPT SELECT * FROM current_dataset`);
        const removedRes = await query(`SELECT * FROM current_dataset EXCEPT SELECT * FROM comparison_dataset`);
  
@@ -155,7 +269,11 @@ export const useDataStore = create<DataStore>((set, get) => ({
          isLoading: false
        });
  
-       mascot.setMascot(MASCOT_STATES.DETECTIVE, `Différence trouvée : +${addedRes.length} / -${removedRes.length}`);
+       if (addedRes.length === 0 && removedRes.length === 0) {
+         mascot.setMascot(MASCOT_STATES.SLEEPING, "Analyse terminée : Fichiers strictement identiques.");
+       } else {
+         mascot.setMascot(MASCOT_STATES.DETECTIVE, `Différence trouvée : +${addedRes.length} / -${removedRes.length}`);
+       }
  
      } catch (e) {
        const code = classifyError(e);
@@ -193,7 +311,7 @@ export const useDataStore = create<DataStore>((set, get) => ({
          await state.selectColumn(state.selectedColumn);
       }
 
-      set({ rows: currentRows, isLoading: false });
+      set({ rows: currentRows, isLoading: false, hasUnsavedChanges: true });
       mascot.setMascot(MASCOT_STATES.SLEEPING, "Modification terminée !");
     
     } catch (e) {
@@ -279,22 +397,27 @@ export const useDataStore = create<DataStore>((set, get) => ({
     }
   },
 
+  queryResult: async (sql: string) => {
+    try {
+      return await query(sql);
+    } catch (e) {
+      console.error("Raw Query Error", e);
+      return [];
+    }
+  },
+
   prepareForCloud: async (hiddenCols: string[]) => {
     try {
-      // 1. Add ID to main table
       await query(`ALTER TABLE current_dataset ADD COLUMN IF NOT EXISTS data_eater_id INTEGER`);
       await query(`UPDATE current_dataset SET data_eater_id = rowid`);
 
-      // 2. Create Staging Table
       await query(`DROP TABLE IF EXISTS cloud_staging`);
       await query(`CREATE TABLE cloud_staging AS SELECT * FROM current_dataset`);
 
-      // 3. Drop Hidden Columns in Staging
       for (const col of hiddenCols) {
         await query(`ALTER TABLE cloud_staging DROP COLUMN IF EXISTS "${col}"`);
       }
 
-      // 4. Return data for export (JSON)
       const exportData = await query(`SELECT * FROM cloud_staging`);
       return exportData;
 
@@ -340,5 +463,53 @@ export const useDataStore = create<DataStore>((set, get) => ({
       useErrorStore.getState().reportError(classifyError(e), e);
       throw e;
     }
-  }
+  },
+
+  setSearchQuery: async (q: string) => {
+    set({ searchQuery: q });
+    await get().fetchCurrentView();
+  },
+
+  setSort: async (column: string) => {
+    const currentSort = get().sortConfig;
+    let nextSort: { column: string, direction: 'ASC' | 'DESC' } | null = { column, direction: 'ASC' };
+
+    if (currentSort && currentSort.column === column) {
+      if (currentSort.direction === 'ASC') {
+        nextSort = { column, direction: 'DESC' };
+      } else {
+        nextSort = null;
+      }
+    }
+
+    set({ sortConfig: nextSort });
+    await get().fetchCurrentView();
+  },
+
+  resetData: async () => {
+    try {
+      const { conn } = await initDuckDB();
+      if (conn) {
+        await conn.query(`DROP TABLE IF EXISTS current_dataset`);
+        await conn.query(`DROP TABLE IF EXISTS comparison_dataset`);
+      }
+      set({
+        fileMeta: null,
+        columns: [],
+        rows: [],
+        rowCount: 0,
+        selectedColumn: null,
+        columnStats: null,
+        diffReport: null,
+        searchQuery: '',
+        sortConfig: null,
+        hasUnsavedChanges: false
+      });
+      useMascotStore.getState().resetMascot(true);
+    } catch (e) {
+      console.error(e);
+    }
+  },
+
+  markExported: () => set({ hasUnsavedChanges: false })
 }));

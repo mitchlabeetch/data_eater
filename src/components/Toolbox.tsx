@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { useDataStore } from '../stores/dataStore';
+import { useViewStore } from '../stores/viewStore';
 import { validateForAS400, AS400Report } from '../lib/validators/as400';
 import ReportModal from './ReportModal';
+import DiffModal from './DiffModal';
 import { DateTime } from 'luxon';
 import { 
   Wrench, 
@@ -13,15 +15,18 @@ import {
   CaseUpper,
   CaseLower,
   Eraser,
-  ArrowDownUp
+  ArrowDownUp,
+  Sparkles
 } from 'lucide-react';
 import clsx from 'clsx';
 
 const Toolbox: React.FC = () => {
-  const { selectedColumn, executeMutation, fetchRows, columns, loadComparisonFile } = useDataStore();
+  const { selectedColumn, executeMutation, fetchRows, columns } = useDataStore();
+  const { openNormalization } = useViewStore();
   const [report, setReport] = useState<AS400Report | null>(null);
+
   const [isReportOpen, setIsReportOpen] = useState(false);
-  const diffInputRef = React.useRef<HTMLInputElement>(null);
+  const [isDiffOpen, setIsDiffOpen] = useState(false);
 
   const handleTransform = (type: 'UPPER' | 'LOWER' | 'TRIM') => {
     if (!selectedColumn) return;
@@ -97,27 +102,16 @@ const Toolbox: React.FC = () => {
     executeMutation(sql);
   };
 
-  const handleDiffFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      loadComparisonFile(e.target.files[0]);
-    }
-    // Reset input
-    if (diffInputRef.current) diffInputRef.current.value = '';
-  };
-
   return (
     <aside className="w-64 bg-surface-dark border-l border-border-dark flex flex-col shrink-0 h-full">
-      <input 
-        type="file" 
-        ref={diffInputRef} 
-        onChange={handleDiffFileChange} 
-        className="hidden" 
-        accept=".csv,.xlsx"
-      />
       <ReportModal 
         isOpen={isReportOpen} 
         onClose={() => setIsReportOpen(false)} 
         report={report} 
+      />
+      <DiffModal 
+        isOpen={isDiffOpen}
+        onClose={() => setIsDiffOpen(false)}
       />
 
       {/* Header */}
@@ -171,6 +165,17 @@ const Toolbox: React.FC = () => {
           />
         </div>
 
+        {/* Group: Intelligence */}
+        <div className="space-y-2">
+          <h4 className="text-[10px] font-bold uppercase tracking-wider text-subtle ml-1">Intelligence</h4>
+          <ToolButton 
+            icon={<Sparkles size={14} />} 
+            label="Normalisation Avancée" 
+            subtitle="Timezone, Geo, Fuzzy"
+            onClick={openNormalization}
+          />
+        </div>
+
         {/* Group: Structure */}
         <div className="space-y-2">
           <h4 className="text-[10px] font-bold uppercase tracking-wider text-subtle ml-1">Structure</h4>
@@ -186,7 +191,7 @@ const Toolbox: React.FC = () => {
             icon={<ArrowDownUp size={14} />} 
             label="Comparer Fichiers" 
             subtitle="Identifier les changements (V1 vs V2)"
-            onClick={() => diffInputRef.current?.click()}
+            onClick={() => setIsDiffOpen(true)}
           />
 
           <ToolButton 

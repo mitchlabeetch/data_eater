@@ -39,11 +39,13 @@ export const useErrorStore = create<ErrorStore>((set) => ({
 
     console.error(`[DataEater Error ${code}]`, originalError);
 
-    // 3. Trigger Mascot Indigestion
+    // 3. Trigger Mascot Indigestion with SPECIFIC message if available, else DB title
     const mascot = useMascotStore.getState();
+    const specificMsg = originalError instanceof Error ? originalError.message : entry.message;
+    
     mascot.setMascot(
       MASCOT_STATES.INDIGESTION, 
-      `${entry.title} : ${entry.message}`
+      `${entry.title} : ${specificMsg}`
     );
 
     // 4. Update Store

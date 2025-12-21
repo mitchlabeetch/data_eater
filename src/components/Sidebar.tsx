@@ -100,7 +100,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onOpenFAQ }) => {
         <Mascot />
         <div className="mt-4 flex items-center justify-center gap-2 text-[10px] text-subtle font-bold uppercase tracking-widest">
           <Lock size={10} className="text-primary" />
-          <span>Protection Robertet Active</span>
+          <span>Protection Active</span>
         </div>
       </div>
     </aside>

@@ -1,6 +1,6 @@
 export const APP_CONFIG = {
   name: "Data Eater",
-  version: "1.1.0",
+  version: "1.4.0",
   company: "Robertet",
   timezone: "Europe/Paris", // Grasse Time
 };

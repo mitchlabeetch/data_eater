@@ -3,13 +3,34 @@ import Sidebar from "./components/Sidebar";
 import Toolbox from "./components/Toolbox";
 import ExportModal from "./components/ExportModal";
 import FAQPage from "./components/FAQPage";
+import FilterModal from "./components/FilterModal";
+import NormalizationModal from "./components/NormalizationModal";
 import { useDataStore } from "./stores/dataStore";
+import { useViewStore } from "./stores/viewStore";
 import { useDropzone } from 'react-dropzone';
-import { Upload, Search, Filter, Save, FileOutput, Shield, Loader2, ArrowDownUp } from "lucide-react";
+import { Upload, Search, Filter, Save, FileOutput, Shield, Loader2, ArrowDownUp, LogOut } from "lucide-react";
 import clsx from "clsx";
 
 function App() {
-  const { initializeEngine, loadFile, isReady, rows, columns, rowCount, fileMeta, isLoading, selectedColumn, selectColumn } = useDataStore();
+  const { 
+    initializeEngine, 
+    loadFile, 
+    isReady, 
+    rows, 
+    columns, 
+    rowCount, 
+    fileMeta, 
+    isLoading, 
+    selectedColumn, 
+    selectColumn,
+    searchQuery,
+    setSearchQuery,
+    sortConfig,
+    setSort,
+    hasUnsavedChanges,
+    resetData
+  } = useDataStore();
+  const { openFilter, isNormalizationOpen, closeNormalization } = useViewStore();
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isFAQOpen, setIsFAQOpen] = useState(false);
 
@@ -17,6 +38,15 @@ function App() {
   useEffect(() => {
     initializeEngine();
   }, [initializeEngine]);
+
+  const handleQuit = async () => {
+    if (hasUnsavedChanges) {
+      if (!confirm("Attention : vous avez effectué des modifications sur ce fichier sans exporter la nouvelle version. Êtes-vous sûre de vouloir quitter la gestion de ce fichier ?")) {
+        return;
+      }
+    }
+    await resetData();
+  };
 
   // Dropzone logic
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -45,9 +75,19 @@ function App() {
           </div>
           <div>
             <h1 className="text-lg font-black tracking-tight flex items-center gap-2">
-              DATA EATER <span className="text-[10px] font-normal text-text-muted border border-border-dark px-2 py-0.5 rounded-full">v1.1 GRASSE</span>
+              DATA EATER <span className="text-[10px] font-normal text-text-muted border border-border-dark px-2 py-0.5 rounded-full">v1.4</span>
             </h1>
           </div>
+          
+          {fileMeta && (
+            <button 
+              onClick={handleQuit}
+              className="ml-4 flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest text-red-400 hover:bg-red-500/10 transition-colors border border-red-500/20"
+            >
+              <LogOut size={12} />
+              Quitter cette table
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
@@ -70,6 +110,8 @@ function App() {
 
       <ExportModal isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} />
       <FAQPage isOpen={isFAQOpen} onClose={() => setIsFAQOpen(false)} />
+      <FilterModal />
+      <NormalizationModal isOpen={isNormalizationOpen} onClose={closeNormalization} />
 
       {/* Main Layout */}
       <div className="flex-1 flex overflow-hidden">
@@ -83,11 +125,16 @@ function App() {
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
                 <input 
                   type="text" 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Rechercher (SQL)..." 
                   className="bg-surface-dark border border-border-dark rounded-md h-8 pl-9 pr-4 text-xs w-64 focus:outline-none focus:border-primary transition-colors placeholder:text-subtle"
                 />
               </div>
-              <button className="flex items-center gap-1.5 text-xs font-bold text-text-muted hover:text-white transition-colors">
+              <button 
+                onClick={openFilter}
+                className="flex items-center gap-1.5 text-xs font-bold text-text-muted hover:text-white transition-colors"
+              >
                 <Filter size={14} />
                 Filtres
               </button>
@@ -95,7 +142,7 @@ function App() {
 
             <div className="flex items-center gap-2 text-[10px] uppercase font-bold text-subtle tracking-widest">
               <Shield size={12} className="text-primary" />
-              Sécurité Robertet : Chiffrement Local
+              Chiffrement Local
             </div>
           </div>
 
@@ -163,21 +210,33 @@ function App() {
                       <th className="p-3 border-b border-border-dark w-12 text-center bg-surface-active">#</th>
                       {columns.map((col) => {
                         const isSelected = selectedColumn === col.name;
+                        const sort = sortConfig?.column === col.name ? sortConfig.direction : null;
+                        
                         return (
                           <th 
                             key={col.name} 
-                            onClick={() => selectColumn(isSelected ? null : col.name)}
                             className={clsx(
                               "p-3 border-b border-border-dark font-semibold tracking-wider whitespace-nowrap cursor-pointer transition-colors group select-none",
                               isSelected ? "bg-primary/20 text-white border-b-primary" : "bg-surface-active hover:bg-surface-dark hover:text-white"
                             )}
                           >
                             <div className="flex items-center gap-2">
-                              <span>{col.name}</span>
+                              <span onClick={() => selectColumn(isSelected ? null : col.name)}>{col.name}</span>
                               <span className={clsx("text-[10px] px-1 rounded transition-colors", isSelected ? "bg-primary text-background-dark" : "bg-background-dark text-subtle")}>
                                 {col.type}
                               </span>
-                              {isSelected && <ArrowDownUp size={12} className="text-primary animate-in fade-in zoom-in" />}
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSort(col.name);
+                                }}
+                                className={clsx(
+                                  "p-1 rounded hover:bg-white/10 transition-all",
+                                  sort ? "text-primary opacity-100" : "text-subtle opacity-0 group-hover:opacity-100"
+                                )}
+                              >
+                                <ArrowDownUp size={12} className={clsx(sort === 'DESC' && "rotate-180")} />
+                              </button>
                             </div>
                           </th>
                         );

@@ -3,6 +3,7 @@ import duckdb_wasm from '@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url';
 import mvp_worker from '@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js?url';
 import duckdb_eh from '@duckdb/duckdb-wasm/dist/duckdb-eh.wasm?url';
 import eh_worker from '@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js?url';
+import ExcelJS from 'exceljs';
 
 const MANUAL_BUNDLES: duckdb.DuckDBBundles = {
     mvp: {
@@ -48,21 +49,50 @@ export const query = async (sql: string) => {
     return result.toArray().map((row) => row.toJSON());
 };
 
-export const ingestCSV = async (file: File) => {
-    const { db, conn } = getDB();
-    if (!db || !conn) return;
+export const registerFile = async (file: File): Promise<string> => {
+    const { db } = getDB();
+    if (!db) throw new Error("DB not ready");
 
-    // Register the file
-    await db.registerFileHandle(file.name, file, duckdb.DuckDBDataProtocol.BROWSER_FILEREADER, true);
+    if (file.name.endsWith('.xlsx')) {
+      const workbook = new ExcelJS.Workbook();
+      const buffer = await file.arrayBuffer();
+      await workbook.xlsx.load(buffer);
+      const worksheet = workbook.getWorksheet(1); // Load first sheet
+      
+      if (!worksheet) throw new Error("Excel file is empty or has no sheets");
+
+      // Convert to CSV String
+      const rows: string[] = [];
+      worksheet.eachRow((row, _rowNumber) => {
+        const rowValues = (row.values as any[]).slice(1);
+        const csvLine = rowValues.map(v => {
+          if (v === null || v === undefined) return '';
+          const str = String(v).replace(/"/g, '""');
+          return `"${str}"`;
+        }).join(',');
+        rows.push(csvLine);
+      });
+      
+      const csvContent = rows.join('\n');
+      const tempName = `converted_${file.name.replace(/\s/g, '_')}.csv`;
+      await db.registerFileText(tempName, csvContent);
+      return tempName;
+    } else {
+      await db.registerFileHandle(file.name, file, duckdb.DuckDBDataProtocol.BROWSER_FILEREADER, true);
+      return file.name;
+    }
+};
+
+export const ingestCSV = async (file: File) => {
+    const { conn } = getDB();
+    if (!conn) return;
+
+    const tableName = 'current_dataset';
+    const fileNameToLoad = await registerFile(file);
     
     // Create the table automatically
-    const tableName = 'current_dataset';
-    
-    // Drop if exists (clean slate for V1)
     await conn.query(`DROP TABLE IF EXISTS ${tableName}`);
-    
-    // Auto-detect CSV settings
-    await conn.query(`CREATE TABLE ${tableName} AS SELECT * FROM read_csv_auto('${file.name}')`);
+    await conn.query(`CREATE TABLE ${tableName} AS SELECT * FROM read_csv_auto('${fileNameToLoad}')`);
     
     // Get Schema
     const schema = await conn.query(`PRAGMA table_info('${tableName}')`);

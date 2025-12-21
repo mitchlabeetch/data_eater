@@ -1,12 +1,28 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme {
+  --color-robertet-green: #006B3F;
+  --color-glouton-green: #39FF14;
+  --color-glouton-red: #FF073A;
+  --color-background-dark: #111813;
+  --color-surface-dark: #1c2a21;
+  --color-surface-active: #28392e;
+  --color-border-dark: #28392e;
+  --color-primary: #13ec5b;
+  --color-primary-dim: #0fa640;
+  --color-text-muted: #9db9a6;
+  --color-subtle: #55695e;
+
+  --font-display: "Inter", sans-serif;
+  --font-retro: "Press Start 2P", cursive;
+  --font-mono: "JetBrains Mono", monospace;
+}
 
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: var(--font-display);
   line-height: 1.5;
   font-weight: 400;
-  background-color: #0f172a; /* Slate 950 */
+  background-color: var(--color-background-dark);
   color: rgba(255, 255, 255, 0.87);
 }
 

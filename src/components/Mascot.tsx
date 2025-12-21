@@ -49,11 +49,11 @@ const Mascot: React.FC = () => {
       </div>
 
       <div className="w-full text-center space-y-1">
-        <p className="text-primary font-retro text-[10px] uppercase tracking-tighter">
+        <p className="text-primary font-mono text-[10px] font-bold uppercase tracking-tighter">
           {state}
         </p>
-        <div className="h-10 flex items-center justify-center px-2">
-          <p className="text-text-muted text-xs font-medium leading-tight line-clamp-2">
+        <div className="h-10 flex items-center justify-center px-2 w-full">
+          <p className="text-text-muted text-xs font-medium leading-tight line-clamp-3 w-full break-words">
             {message}
           </p>
         </div>
