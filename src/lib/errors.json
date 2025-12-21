@@ -1,0 +1,52 @@
+{
+  "CORE_001": {
+    "title": "Fichier Illisible",
+    "message": "Impossible de lire le fichier source.",
+    "suggestion": "Vérifiez que le fichier n'est pas ouvert dans Excel ou un autre programme. Assurez-vous d'avoir les droits de lecture."
+  },
+  "CORE_002": {
+    "title": "Format Non Supporté",
+    "message": "Le format du fichier n'est pas reconnu.",
+    "suggestion": "Le Glouton accepte uniquement les fichiers .csv, .xlsx et .json pour le moment."
+  },
+  "DB_001": {
+    "title": "Erreur SQL (DuckDB)",
+    "message": "Le moteur de données a rencontré une erreur de syntaxe ou de structure.",
+    "suggestion": "Vérifiez vos noms de colonnes. Les espaces ou caractères spéciaux peuvent causer des problèmes dans les requêtes manuelles."
+  },
+  "DB_002": {
+    "title": "Table Introuvable",
+    "message": "La table cible n'existe pas en mémoire.",
+    "suggestion": "Essayez de recharger le fichier. Si le problème persiste, redémarrez l'application."
+  },
+  "DB_003": {
+    "title": "Conflit de Types",
+    "message": "Opération impossible entre ces types de données.",
+    "suggestion": "Vous essayez peut-être de faire une somme sur du texte ou de comparer des dates invalides."
+  },
+  "NET_001": {
+    "title": "Connexion API Échouée",
+    "message": "Impossible de joindre le serveur Cloud sécurisé.",
+    "suggestion": "Vérifiez votre connexion internet. Si vous êtes sur un VPN d'entreprise (Robertet), vérifiez qu'il n'y a pas de blocage."
+  },
+  "NET_002": {
+    "title": "Timeout API",
+    "message": "Le serveur met trop de temps à répondre.",
+    "suggestion": "Le fichier ou la requête est peut-être trop complexe. Essayez de réduire le nombre de colonnes envoyées."
+  },
+  "IO_001": {
+    "title": "Échec de l'Export",
+    "message": "Impossible d'écrire le fichier sur le disque.",
+    "suggestion": "Vérifiez que vous avez l'espace disque nécessaire et les droits d'écriture dans le dossier cible."
+  },
+  "LOGIC_001": {
+    "title": "Diff Impossible",
+    "message": "Les fichiers sont trop différents pour être comparés.",
+    "suggestion": "Assurez-vous que les deux fichiers ont au moins une structure similaire ou un identifiant commun."
+  },
+  "UNKNOWN": {
+    "title": "Indigestion Mystérieuse",
+    "message": "Une erreur inattendue est survenue.",
+    "suggestion": "Prenez une capture d'écran et contactez le support informatique."
+  }
+}
