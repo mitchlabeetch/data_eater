@@ -509,12 +509,26 @@ const FuzzyPanel: React.FC = () => {
     const tempClusters: Array<{ center: string, candidates: string[] }> = [];
     const used = new Set<string>();
 
+    // Sort by length descending to use longer strings as cluster centers
     values.sort((a, b) => b.length - a.length);
 
     values.forEach(val => {
       if (used.has(val)) return;
       
-      const candidates = fuzzysort.go(val, values, { threshold: -50 }).map(r => r.target).filter(c => c !== val && !used.has(c));
+      // Improved fuzzy matching with better threshold based on string length
+      // Shorter strings need stricter matching, longer strings can be more lenient
+      const dynamicThreshold = Math.max(-200, -val.length * 5);
+      const fuzzyResults = fuzzysort.go(val, values, { threshold: dynamicThreshold });
+      
+      const candidates = fuzzyResults
+        .filter(result => {
+          const c = result.target;
+          if (c === val || used.has(c)) return false;
+          // Additional heuristic: check normalized score ratio
+          const similarity = result.score / Math.max(val.length, c.length);
+          return similarity > -15; // More refined similarity threshold
+        })
+        .map(result => result.target);
       
       if (candidates.length > 0) {
         tempClusters.push({ center: val, candidates });
