@@ -491,6 +491,11 @@ const GeoPanel: React.FC = () => {
   );
 };
 
+// Fuzzy matching configuration constants
+const FUZZY_THRESHOLD_BASE = -200;
+const FUZZY_THRESHOLD_MULTIPLIER = 5;
+const SIMILARITY_SCORE_THRESHOLD = -15;
+
 const FuzzyPanel: React.FC = () => {
   const { columns, selectedColumn, queryResult, executeMutation } = useDataStore();
   const [targetCol, setTargetCol] = useState(selectedColumn || '');
@@ -498,11 +503,6 @@ const FuzzyPanel: React.FC = () => {
   const [merges, setMerges] = useState<Record<string, string>>({}); 
   const [selectedClusters, setSelectedClusters] = useState<Set<string>>(new Set());
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-
-  // Fuzzy matching configuration
-  const FUZZY_THRESHOLD_BASE = -200;
-  const FUZZY_THRESHOLD_MULTIPLIER = 5;
-  const SIMILARITY_SCORE_THRESHOLD = -15;
 
   const handleAnalyze = async () => {
     if (!targetCol) return;
@@ -530,7 +530,8 @@ const FuzzyPanel: React.FC = () => {
           const c = result.target;
           if (c === val || used.has(c)) return false;
           // Additional heuristic: check normalized score ratio
-          const similarity = result.score / Math.max(val.length, c.length);
+          // Guard against division by zero with || 1
+          const similarity = result.score / (Math.max(val.length, c.length) || 1);
           return similarity > SIMILARITY_SCORE_THRESHOLD; // More refined similarity threshold
         })
         .map(result => result.target);
