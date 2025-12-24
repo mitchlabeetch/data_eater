@@ -1,15 +1,24 @@
 import React from 'react';
 import Mascot from './Mascot';
 import ColumnStats from './ColumnStats';
+import { LineageTree } from './LineageTree';
 import { useDataStore } from '../stores/dataStore';
-import { Lock, Database, ArrowLeft, FileText, HardDrive, Hash, HelpCircle, Copy, AlertCircle } from 'lucide-react';
+import { Lock, Database, ArrowLeft, FileText, HardDrive, Hash, HelpCircle, Copy, AlertCircle, Activity } from 'lucide-react';
 
 interface SidebarProps {
   onOpenFAQ: () => void;
+  onOpenHealth: () => void;
+  onOpenViz: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ onOpenFAQ }) => {
-  const { fileMeta, rowCount, columns, selectedColumn, selectColumn, duplicates, mergeDuplicates } = useDataStore();
+const Sidebar: React.FC<SidebarProps> = ({ onOpenFAQ, onOpenHealth, onOpenViz }) => {
+  const { fileMeta, rowCount, columns, selectedColumn, selectColumn, duplicates, mergeDuplicates, healthReport } = useDataStore();
+
+  const getScoreColor = (score: number) => {
+    if (score >= 80) return 'text-primary';
+    if (score >= 50) return 'text-yellow-500';
+    return 'text-red-500';
+  };
 
   return (
     <aside className="w-72 bg-surface-dark border-r border-border-dark flex flex-col h-full shrink-0 transition-all duration-300">
@@ -46,7 +55,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onOpenFAQ }) => {
       <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
         {selectedColumn ? (
           // 1. Column Analysis Mode
-          <ColumnStats />
+          <ColumnStats onOpenViz={onOpenViz} />
         ) : (
           // 2. Global File Mode (Default)
           <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
@@ -84,6 +93,22 @@ const Sidebar: React.FC<SidebarProps> = ({ onOpenFAQ }) => {
                    </div>
                  </div>
 
+                 {/* Health Report Button */}
+                 {healthReport && (
+                    <button 
+                      onClick={onOpenHealth}
+                      className="w-full bg-surface-active hover:bg-surface-active/80 p-3 rounded-lg border border-border-dark hover:border-primary/50 transition-all flex items-center justify-between group"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Activity size={16} className={getScoreColor(healthReport.overallScore)} />
+                        <span className="text-xs font-bold uppercase text-white">Bulletin Santé</span>
+                      </div>
+                      <span className={`font-mono font-bold ${getScoreColor(healthReport.overallScore)}`}>
+                        {healthReport.overallScore}%
+                      </span>
+                    </button>
+                 )}
+
                  {/* Duplicates Section */}
                  {duplicates && (
                    <div className="pt-4 border-t border-border-dark space-y-3 animate-in slide-in-from-left-2">
@@ -113,13 +138,18 @@ const Sidebar: React.FC<SidebarProps> = ({ onOpenFAQ }) => {
 
                      <button 
                        onClick={mergeDuplicates}
-                       className="w-full py-2 bg-yellow-500 hover:bg-yellow-400 text-background-dark rounded-lg text-xs font-bold uppercase tracking-wider shadow-lg transition-all flex items-center justify-center gap-2"
+                       className="w-full py-2 bg-yellow-500 hover:bg-yellow-400 text-background-dark rounded-lg text-xs font-bold uppercase tracking-widest shadow-lg transition-all flex items-center justify-center gap-2"
                      >
                        <AlertCircle size={14} />
                        Rassembler les entrées
                      </button>
                    </div>
                  )}
+
+                 {/* Data Lineage (Recipe) */}
+                 <div className="pt-6 border-t border-border-dark">
+                    <LineageTree />
+                 </div>
                </>
             ) : (
               // Empty State

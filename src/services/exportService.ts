@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import iconv from 'iconv-lite';
 import { Buffer } from 'buffer';
+import { getDB } from './duckdb';
 
 // Polyfill Buffer for browser environment
 if (typeof window !== 'undefined') {
@@ -9,7 +10,7 @@ if (typeof window !== 'undefined') {
 
 export interface ExportOptions {
   filename: string;
-  format: 'csv' | 'xlsx' | 'json';
+  format: 'csv' | 'xlsx' | 'json' | 'parquet';
   encoding: 'utf-8' | 'windows-1252';
   delimiter: ',' | ';' | '\t';
   includeHeaders: boolean;
@@ -44,6 +45,13 @@ export const PRESETS: Record<string, ExportOptions> = {
     encoding: 'utf-8',
     delimiter: ',',
     includeHeaders: true,
+  },
+  'PowerBI_Parquet': {
+    filename: 'export_powerbi',
+    format: 'parquet',
+    encoding: 'utf-8',
+    delimiter: ',',
+    includeHeaders: true,
   }
 };
 
@@ -55,6 +63,8 @@ export const generateExport = async (rows: any[], columns: { name: string }[], o
     await exportExcel(rows, columns, fullFilename);
   } else if (format === 'json') {
     exportJSON(rows, fullFilename);
+  } else if (format === 'parquet') {
+    await exportParquet(fullFilename);
   } else {
     exportCSV(rows, columns, fullFilename, encoding, delimiter, includeHeaders);
   }
@@ -69,6 +79,20 @@ const triggerDownload = (blob: Blob, filename: string) => {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+};
+
+const exportParquet = async (filename: string) => {
+  const { db, conn } = getDB();
+  if (!db || !conn) return;
+
+  const tempFile = 'export_internal.parquet';
+  await conn.query(`COPY current_dataset TO '${tempFile}' (FORMAT PARQUET)`);
+  
+  const buffer = await db.copyFileToBuffer(tempFile);
+  const blob = new Blob([buffer], { type: 'application/octet-stream' });
+  triggerDownload(blob, filename);
+  
+  await db.dropFile(tempFile);
 };
 
 const exportExcel = async (rows: any[], columns: { name: string }[], filename: string) => {

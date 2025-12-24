@@ -3,6 +3,7 @@ import duckdb_wasm from '@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url';
 import mvp_worker from '@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js?url';
 import duckdb_eh from '@duckdb/duckdb-wasm/dist/duckdb-eh.wasm?url';
 import eh_worker from '@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js?url';
+import { sniffFile } from '../lib/sniffer';
 
 const MANUAL_BUNDLES: duckdb.DuckDBBundles = {
     mvp: {
@@ -90,9 +91,39 @@ export const ingestCSV = async (file: File) => {
     const tableName = 'current_dataset';
     const fileNameToLoad = await registerFile(file);
     
-    // Create the table automatically
     await conn.query(`DROP TABLE IF EXISTS ${tableName}`);
-    await conn.query(`CREATE TABLE ${tableName} AS SELECT * FROM read_csv_auto('${fileNameToLoad}')`);
+
+    if (file.name.endsWith('.xlsx')) {
+         await conn.query(`CREATE TABLE ${tableName} AS SELECT * FROM read_csv_auto('${fileNameToLoad}')`);
+    } else {
+        // Sniff for Encoding and Delimiter
+        let delimiter = ',';
+        let encoding = 'UTF-8';
+        
+        try {
+            const sniff = await sniffFile(file);
+            delimiter = sniff.delimiter;
+            encoding = sniff.encoding;
+            console.log("🕵️‍♀️ Sniffer Result:", sniff);
+        } catch (e) {
+            console.warn("Sniff failed, falling back to defaults", e);
+        }
+
+        const encodingParam = encoding === 'WINDOWS-1252' ? ", encoding='latin-1'" : "";
+        const sql = `
+            CREATE TABLE ${tableName} AS 
+            SELECT * FROM read_csv('${fileNameToLoad}', 
+                header=true,
+                delim='${delimiter}',
+                normalize_names=true,
+                ignore_errors=true
+                ${encodingParam}
+            )
+        `;
+        
+        console.log("Executing Ingestion SQL:", sql);
+        await conn.query(sql);
+    }
     
     // Get Schema
     const schema = await conn.query(`PRAGMA table_info('${tableName}')`);

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, FileOutput, Save, Settings } from 'lucide-react';
+import { X, FileOutput, Save, Settings, AlertCircle } from 'lucide-react';
 import { ExportOptions, DEFAULT_EXPORT_OPTIONS, PRESETS, generateExport } from '../services/exportService';
+import { ExportPreview } from './ExportPreview';
 import { useDataStore } from '../stores/dataStore';
 import clsx from 'clsx';
 
@@ -46,7 +47,7 @@ const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-surface-dark border border-border-dark w-full max-w-md rounded-xl shadow-2xl flex flex-col">
+      <div className="bg-surface-dark border border-border-dark w-full max-w-lg rounded-xl shadow-2xl flex flex-col">
         
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-border-dark bg-background-dark/50 rounded-t-xl">
@@ -65,8 +66,16 @@ const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => {
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 overflow-y-auto max-h-[70vh] custom-scrollbar">
           
+          {/* View Warning */}
+          <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg flex items-start gap-3">
+            <AlertCircle size={16} className="text-blue-400 shrink-0 mt-0.5" />
+            <p className="text-[11px] text-blue-100 leading-relaxed">
+              Les données seront exportées selon la <strong>vue actuelle</strong> (filtres et tris appliqués).
+            </p>
+          </div>
+
           {/* Filename */}
           <div className="space-y-1.5">
             <label className="text-xs font-bold uppercase text-subtle tracking-wider">Nom du Fichier</label>
@@ -114,6 +123,7 @@ const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => {
                 <option value="csv">CSV (Texte)</option>
                 <option value="xlsx">Excel (XLSX)</option>
                 <option value="json">JSON (Web)</option>
+                <option value="parquet">Parquet (PowerBI)</option>
               </select>
             </div>
             
@@ -163,6 +173,9 @@ const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => {
                </div>
              </div>
           )}
+
+          {/* LIVE PREVIEW */}
+          <ExportPreview options={options} />
 
         </div>
 

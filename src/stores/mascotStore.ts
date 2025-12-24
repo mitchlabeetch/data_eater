@@ -4,55 +4,80 @@ import { MascotState, MASCOT_STATES } from '../lib/constants';
 interface MascotStore {
   state: MascotState;
   message: string;
-  lastActiveAt: number;
+  timeoutId: any | null;
   setMascot: (state: MascotState, message?: string) => void;
-  resetMascot: (force?: boolean) => void;
+  resetMascot: (delay?: number) => void;
 }
 
 const DEFAULT_MESSAGE = "Prêt à digérer vos données !";
-const MIN_ACTIVE_DURATION = 5000; // 5 seconds
+const COOLDOWN_DURATION = 5000; // 5 seconds AFTER action ends
+
+const MESSAGES: Record<MascotState, string[]> = {
+  [MASCOT_STATES.SLEEPING]: [
+    "Prêt à digérer vos données !",
+    "Zzz... (Mode économie d'énergieRoberté)",
+    "Le Glouton attend sa collation locale.",
+    "Systèmes parés. En attente de CSV."
+  ],
+  [MASCOT_STATES.EATING]: [
+    "Miam ! Je traite ces lignes une par une...",
+    "Digestion locale en cours. Pas de cloud ici !",
+    "Crunch crunch... C'est riche en colonnes tout ça.",
+    "Le moteur DuckDB tourne à plein régime."
+  ],
+  [MASCOT_STATES.COOKING]: [
+    "Chef Glouton aux fourneaux ! (Calcul en cours)",
+    "Je mijote une transformation aux petits oignons.",
+    "Recette de nettoyage Robertet appliquée.",
+    "Ça va être propre, promis."
+  ],
+  [MASCOT_STATES.DETECTIVE]: [
+    "J'analyse les données... Quelque chose a bougé.",
+    "Mode Détective activé. Inspection en cours.",
+    "Je vérifie la structure du fichier...",
+    "Rapport d'enquête en cours de rédaction."
+  ],
+  [MASCOT_STATES.INDIGESTION]: [
+    "Ouch ! Ce format est trop indigeste.",
+    "Attention : données corrompues détectées !",
+    "Beurk ! Des caractères invalides dans le flux.",
+    "Indigestion système. Vérifiez l'encodage."
+  ]
+};
 
 export const useMascotStore = create<MascotStore>((set: any, get: any) => ({
   state: MASCOT_STATES.SLEEPING,
   message: DEFAULT_MESSAGE,
-  lastActiveAt: 0,
+  timeoutId: null,
   
   setMascot: (state: MascotState, message?: string) => {
-    const isActivating = state !== MASCOT_STATES.SLEEPING;
+    // Clear any pending reset
+    const currentTimeout = get().timeoutId;
+    if (currentTimeout) clearTimeout(currentTimeout);
+
+    const available = MESSAGES[state] || [DEFAULT_MESSAGE];
+    const randomMsg = available[Math.floor(Math.random() * available.length)];
+
     set({ 
       state, 
-      message: message || getDefaultMessage(state),
-      lastActiveAt: isActivating ? Date.now() : get().lastActiveAt
+      message: message || randomMsg,
+      timeoutId: null
     });
   },
 
-  resetMascot: (force = false) => {
-    const state = get();
-    const now = Date.now();
-    const elapsed = now - state.lastActiveAt;
+  resetMascot: (delay = COOLDOWN_DURATION) => {
+    const currentTimeout = get().timeoutId;
+    if (currentTimeout) clearTimeout(currentTimeout);
 
-    if (!force && state.state !== MASCOT_STATES.SLEEPING && elapsed < MIN_ACTIVE_DURATION) {
-      // Set a timer to reset later if it's too soon
-      setTimeout(() => {
-        get().resetMascot();
-      }, MIN_ACTIVE_DURATION - elapsed);
-      return;
-    }
+    const id = setTimeout(() => {
+      const available = MESSAGES[MASCOT_STATES.SLEEPING];
+      set({ 
+        state: MASCOT_STATES.SLEEPING, 
+        message: available[Math.floor(Math.random() * available.length)],
+        timeoutId: null
+      });
+    }, delay);
 
-    set({ 
-      state: MASCOT_STATES.SLEEPING, 
-      message: DEFAULT_MESSAGE 
-    });
+    set({ timeoutId: id });
   },
 }));
-
-function getDefaultMessage(state: MascotState): string {
-  switch (state) {
-    case MASCOT_STATES.EATING: return "Miam... Je traite vos données...";
-    case MASCOT_STATES.COOKING: return "Chef Glouton aux fourneaux (Calcul en cours)...";
-    case MASCOT_STATES.DETECTIVE: return "J'analyse les différences entre les fichiers...";
-    case MASCOT_STATES.INDIGESTION: return "Ouch ! Quelque chose ne passe pas...";
-    case MASCOT_STATES.SLEEPING: return DEFAULT_MESSAGE;
-    default: return DEFAULT_MESSAGE;
-  }
-}

@@ -204,6 +204,51 @@ const DiffModal: React.FC<DiffModalProps> = ({ isOpen, onClose }) => {
                       <span className="text-xs font-bold uppercase tracking-wider text-primary/70">Lignes Ajoutées (V2)</span>
                     </div>
                   </div>
+
+                  {/* Aperçu Heatmap */}
+                  {(diffReport.added > 0 || diffReport.removed > 0) && (
+                    <div className="space-y-3">
+                      <h4 className="text-[10px] font-black uppercase tracking-widest text-subtle flex items-center gap-2">
+                        <div className="size-1 bg-primary rounded-full shadow-[0_0_5px_#13ec5b]" />
+                        Aperçu des Écarts (Top 10)
+                      </h4>
+                      <div className="bg-surface-dark border border-border-dark rounded-xl overflow-hidden max-h-64 overflow-y-auto custom-scrollbar">
+                        <table className="w-full text-left border-collapse">
+                          <thead className="bg-background-dark/50 text-[10px] uppercase text-text-muted sticky top-0 z-10 shadow-sm">
+                            <tr>
+                              <th className="p-2 border-b border-border-dark">Action</th>
+                              {Object.keys(diffReport.rowsAdded[0] || diffReport.rowsRemoved[0] || {}).slice(0, 4).map(k => (
+                                <th key={k} className="p-2 border-b border-border-dark">{k}</th>
+                              ))}
+                              <th className="p-2 border-b border-border-dark">...</th>
+                            </tr>
+                          </thead>
+                          <tbody className="text-[11px] font-mono">
+                            {/* Removed Rows */}
+                            {diffReport.rowsRemoved.slice(0, 5).map((row, i) => (
+                              <tr key={`rem-${i}`} className="bg-red-500/5 text-red-200/70 border-b border-red-500/10">
+                                <td className="p-2"><span className="px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 text-[9px] font-bold uppercase">Supprimé</span></td>
+                                {Object.values(row).slice(0, 4).map((v: any, j) => (
+                                  <td key={j} className="p-2 truncate max-w-[120px]">{String(v)}</td>
+                                ))}
+                                <td className="p-2">...</td>
+                              </tr>
+                            ))}
+                            {/* Added Rows */}
+                            {diffReport.rowsAdded.slice(0, 5).map((row, i) => (
+                              <tr key={`add-${i}`} className="bg-primary/5 text-primary/70 border-b border-primary/10">
+                                <td className="p-2"><span className="px-1.5 py-0.5 rounded bg-primary/20 text-primary text-[9px] font-bold uppercase">Ajouté</span></td>
+                                {Object.values(row).slice(0, 4).map((v: any, j) => (
+                                  <td key={j} className="p-2 truncate max-w-[120px]">{String(v)}</td>
+                                ))}
+                                <td className="p-2">...</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
 

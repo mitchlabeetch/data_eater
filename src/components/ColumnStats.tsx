@@ -2,11 +2,16 @@ import React from 'react';
 import { useDataStore } from '../stores/dataStore';
 import { BarChart2, AlertTriangle, Hash, Type } from 'lucide-react';
 
-const ColumnStats: React.FC = () => {
-  const { selectedColumn, columnStats, columns, rowCount } = useDataStore();
+interface ColumnStatsProps {
+  onOpenViz: () => void;
+}
+
+const ColumnStats: React.FC<ColumnStatsProps> = ({ onOpenViz }) => {
+  const { selectedColumn, columnStats, columns, rowCount, healthReport } = useDataStore();
 
   if (!selectedColumn || !columnStats) return null;
 
+  const health = healthReport?.columnHealth[selectedColumn];
   const colType = columns.find(c => c.name === selectedColumn)?.type || 'UNKNOWN';
   const nullPercentage = ((columnStats.nullCount / rowCount) * 100).toFixed(1);
 
@@ -21,11 +26,29 @@ const ColumnStats: React.FC = () => {
             {selectedColumn}
           </h3>
         </div>
-        <div className="bg-surface-active px-2 py-1 rounded flex items-center gap-1 text-[10px] font-mono text-primary">
-          {colType === 'VARCHAR' ? <Type size={10} /> : <Hash size={10} />}
-          {colType}
+        <div className="flex flex-col items-end gap-1">
+          <div className="bg-surface-active px-2 py-1 rounded flex items-center gap-1 text-[10px] font-mono text-primary">
+            {colType === 'VARCHAR' ? <Type size={10} /> : <Hash size={10} />}
+            {colType}
+          </div>
+          {health?.patternMatch && (
+            <span className="text-[9px] bg-primary/20 text-primary px-1.5 py-0.5 rounded border border-primary/30 font-bold">
+              {health.patternMatch}
+            </span>
+          )}
         </div>
       </div>
+
+      {/* Outliers Warning */}
+      {health?.outliers && health.outliers > 0 && (
+        <div className="bg-orange-500/10 border border-orange-500/30 p-2 rounded-lg flex items-start gap-2 animate-pulse">
+          <AlertTriangle size={14} className="text-orange-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-[11px] font-bold text-orange-500">Valeurs Aberrantes</p>
+            <p className="text-[10px] text-text-muted">{health.outliers} points détectés (Z-Score &gt; 3).</p>
+          </div>
+        </div>
+      )}
 
       {/* Null Check (Quality) */}
       <div className="space-y-1">
@@ -50,9 +73,19 @@ const ColumnStats: React.FC = () => {
       </div>
 
       {/* Distinct / Unique */}
-      <div className="bg-surface-active/50 p-3 rounded-lg border border-border-dark flex justify-between items-center">
-        <span className="text-xs text-text-muted">Valeurs Uniques</span>
-        <span className="text-sm font-mono text-white font-bold">{columnStats.distinctCount?.toLocaleString()}</span>
+      <div className="space-y-2">
+        <div className="bg-surface-active/50 p-3 rounded-lg border border-border-dark flex justify-between items-center">
+          <span className="text-xs text-text-muted">Valeurs Uniques</span>
+          <span className="text-sm font-mono text-white font-bold">{columnStats.distinctCount?.toLocaleString()}</span>
+        </div>
+
+        <button 
+          onClick={onOpenViz}
+          className="w-full bg-primary hover:bg-primary-dim text-background-dark py-2 rounded-lg text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-primary/10"
+        >
+          <BarChart2 size={14} />
+          Visualiser Distribution
+        </button>
       </div>
 
       {/* Distribution (Top Values) */}

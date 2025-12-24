@@ -4,6 +4,8 @@ import { useMascotStore } from './mascotStore';
 import { useErrorStore } from './errorStore';
 import { useViewStore } from './viewStore';
 import { MASCOT_STATES } from '../lib/constants';
+import { analyzeHealth, GlobalHealthReport } from '../services/healthService';
+import localforage from 'localforage';
 
 interface Column {
   name: string;
@@ -42,6 +44,8 @@ interface DataStore {
   hasUnsavedChanges: boolean;
   
   duplicates: { total: number; groups: any[] } | null;
+  healthReport: GlobalHealthReport | null;
+  history: Array<{ id: string, type: string, description: string, timestamp: number }>;
 
   // Diff State
   diffReport: {
@@ -59,7 +63,7 @@ interface DataStore {
   loadFile: (file: File) => Promise<void>;
   loadComparisonFile: (file: File) => Promise<void>;
   runQuery: (sql: string) => Promise<void>;
-  executeMutation: (sql: string) => Promise<void>;
+  executeMutation: (sql: string, description?: string) => Promise<void>;
   selectColumn: (colName: string | null) => Promise<void>;
   fetchRows: (limit?: number) => Promise<any[]>;
   queryResult: (sql: string) => Promise<any[]>;
@@ -73,6 +77,7 @@ interface DataStore {
   markExported: () => void;
   checkDuplicates: () => Promise<void>;
   mergeDuplicates: () => Promise<void>;
+  restoreSession: () => Promise<boolean>;
 }
 
 const classifyError = (e: any): string => {
@@ -84,6 +89,11 @@ const classifyError = (e: any): string => {
   if (msg.includes("fetch") || msg.includes("network")) return "NET_001";
   if (msg.includes("file") || msg.includes("permission")) return "IO_001";
   return "UNKNOWN";
+};
+
+const persistSession = async (history: any[], fileMeta: any) => {
+  await localforage.setItem('glouton_history', history);
+  await localforage.setItem('glouton_file_meta', fileMeta);
 };
 
 export const useDataStore = create<DataStore>((set, get) => ({
@@ -100,6 +110,18 @@ export const useDataStore = create<DataStore>((set, get) => ({
   sortConfig: null,
   hasUnsavedChanges: false,
   duplicates: null,
+  healthReport: null,
+  history: [],
+
+  restoreSession: async () => {
+    const history = await localforage.getItem<any[]>('glouton_history');
+    const fileMeta = await localforage.getItem<FileMeta>('glouton_file_meta');
+    if (history && history.length > 0 && fileMeta) {
+      set({ history, fileMeta });
+      return true;
+    }
+    return false;
+  },
 
   fetchCurrentView: async () => {
     const state = get();
@@ -133,7 +155,7 @@ export const useDataStore = create<DataStore>((set, get) => ({
           case 'greater_than': clauses.push(`${col} > '${val}'`); break;
           case 'less_than': clauses.push(`${col} < '${val}'`); break;
           case 'starts_with': clauses.push(`CAST(${col} AS VARCHAR) ILIKE '${val}%'`); break;
-          case 'ends_with': clauses.push(`CAST(${col} AS VARCHAR) ILIKE '%${val}'`); break;
+          case 'ends_with': clauses.push(`CAST(${col} AS VARCHAR) ILIKE '%${val}%'`); break;
           case 'is_empty': clauses.push(`(${col} IS NULL OR CAST(${col} AS VARCHAR) = '')`); break;
           case 'is_not_empty': clauses.push(`(${col} IS NOT NULL AND CAST(${col} AS VARCHAR) != '')`); break;
         }
@@ -179,13 +201,19 @@ export const useDataStore = create<DataStore>((set, get) => ({
 
       const initialData = await query(`SELECT * FROM ${result.tableName} LIMIT 100`);
       
+      // Run Health Check
+      const healthReport = await analyzeHealth(result.columns, file);
+
+      const fileMeta = {
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        lastModified: file.lastModified
+      };
+      const history = [{ id: crypto.randomUUID(), type: 'LOAD', description: `Chargement: ${file.name}`, timestamp: Date.now() }];
+
       set({
-        fileMeta: {
-          name: file.name,
-          size: file.size,
-          type: file.type,
-          lastModified: file.lastModified
-        },
+        fileMeta,
         columns: result.columns,
         rowCount: result.rowCount,
         rows: initialData,
@@ -194,10 +222,13 @@ export const useDataStore = create<DataStore>((set, get) => ({
         columnStats: null,
         diffReport: null,
         hasUnsavedChanges: false,
-        duplicates: null
+        duplicates: null,
+        healthReport: healthReport,
+        history
       });
 
       get().checkDuplicates();
+      persistSession(history, fileMeta);
 
       mascot.setMascot(MASCOT_STATES.SLEEPING, `Prêt ! ${result.rowCount} lignes chargées.`);
     
@@ -253,7 +284,7 @@ export const useDataStore = create<DataStore>((set, get) => ({
            },
            isLoading: false
          });
-         mascot.setMascot(MASCOT_STATES.DETECTIVE, "Attention : Les structures sont différentes.");
+         mascot.setMascot(MASCOT_STATES.DETECTIVE, "Attention : Les structures diffèrent.");
          return;
        }
 
@@ -306,8 +337,9 @@ export const useDataStore = create<DataStore>((set, get) => ({
     }
   },
 
-  executeMutation: async (sql: string) => {
+  executeMutation: async (sql: string, description?: string) => {
     const mascot = useMascotStore.getState();
+    const state = get();
     set({ isLoading: true });
     mascot.setMascot(MASCOT_STATES.EATING, "Application des changements...");
 
@@ -316,14 +348,26 @@ export const useDataStore = create<DataStore>((set, get) => ({
       
       const currentRows = await query(`SELECT * FROM current_dataset LIMIT 100`);
       
-      const state = get();
       if (state.selectedColumn) {
          await state.selectColumn(state.selectedColumn);
       }
 
       await get().checkDuplicates();
 
-      set({ rows: currentRows, isLoading: false, hasUnsavedChanges: true });
+      const newHistory = [...state.history, { 
+        id: crypto.randomUUID(), 
+        type: 'TRANSFORM', 
+        description: description || "Modification des données", 
+        timestamp: Date.now() 
+      }];
+
+      set({ 
+        rows: currentRows, 
+        isLoading: false, 
+        hasUnsavedChanges: true,
+        history: newHistory
+      });
+      persistSession(newHistory, state.fileMeta);
       mascot.setMascot(MASCOT_STATES.SLEEPING, "Modification terminée !");
     
     } catch (e) {
@@ -460,7 +504,14 @@ export const useDataStore = create<DataStore>((set, get) => ({
       await query(`DROP TABLE cloud_incoming`);
       
       const currentRows = await query(`SELECT * FROM current_dataset LIMIT 100`);
-      set({ rows: currentRows });
+      
+      const state = get();
+      const newHistory = [...state.history, { id: crypto.randomUUID(), type: 'AI', description: "Enrichissement IA", timestamp: Date.now() }];
+      set({ 
+        rows: currentRows,
+        history: newHistory
+      });
+      persistSession(newHistory, state.fileMeta);
 
     } catch (e) {
       useErrorStore.getState().reportError(classifyError(e), e);
@@ -507,9 +558,13 @@ export const useDataStore = create<DataStore>((set, get) => ({
         searchQuery: '',
         sortConfig: null,
         hasUnsavedChanges: false,
-        duplicates: null
+        duplicates: null,
+        healthReport: null,
+        history: []
       });
-      useMascotStore.getState().resetMascot(true);
+      await localforage.removeItem('glouton_history');
+      await localforage.removeItem('glouton_file_meta');
+      useMascotStore.getState().resetMascot();
     } catch (e) {
       console.error(e);
     }
@@ -564,6 +619,7 @@ export const useDataStore = create<DataStore>((set, get) => ({
 
   mergeDuplicates: async () => {
     const mascot = useMascotStore.getState();
+    const state = get();
     set({ isLoading: true });
     mascot.setMascot(MASCOT_STATES.EATING, "Fusion des doublons...");
 
@@ -575,7 +631,13 @@ export const useDataStore = create<DataStore>((set, get) => ({
       await get().fetchCurrentView();
       await get().checkDuplicates();
       
-      set({ isLoading: false, hasUnsavedChanges: true });
+      const newHistory = [...state.history, { id: crypto.randomUUID(), type: 'CLEAN', description: "Suppression des doublons", timestamp: Date.now() }];
+      set({ 
+        isLoading: false, 
+        hasUnsavedChanges: true,
+        history: newHistory
+      });
+      persistSession(newHistory, state.fileMeta);
       mascot.setMascot(MASCOT_STATES.SLEEPING, "Doublons fusionnés !");
     } catch (e) {
       useErrorStore.getState().reportError(classifyError(e), e);
