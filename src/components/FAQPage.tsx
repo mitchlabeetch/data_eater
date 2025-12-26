@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, ChevronRight, ShieldCheck, HelpCircle, Database, Search, AlertTriangle } from 'lucide-react';
+import { X, ChevronRight, ShieldCheck, HelpCircle, Database, BarChart3, FileOutput, Wand2, Layers, Map as MapIcon } from 'lucide-react';
 import clsx from 'clsx';
 
 interface FAQPageProps {
@@ -19,7 +19,7 @@ const SECTIONS = [
           Bonjour ! Je suis <strong>Le Glouton</strong> (Data Eater), votre assistant personnel pour le nettoyage et la validation de données chez Robertet.
         </p>
         <p>
-          Ma mission est simple : digérer vos fichiers Excel ou CSV bruts, vous aider à les nettoyer sans jamais modifier l'original, et vous fournir un fichier "prêt à l'emploi" pour l'AS400 ou PowerBI.
+          Ma mission est simple : digérer vos fichiers Excel, CSV, JSON ou même PDF (via guidage), vous aider à les nettoyer sans jamais modifier l'original, et vous fournir un fichier "prêt à l'emploi" pour l'AS400 ou PowerBI.
         </p>
         <p>
           Je fonctionne selon un principe strict : <strong>Zero Data Loss</strong>. Je ne touche jamais à votre fichier source. Je travaille toujours sur une copie en mémoire.
@@ -28,92 +28,110 @@ const SECTIONS = [
     )
   },
   {
-    id: 'diff',
-    title: "L'Inspecteur de Différences",
-    icon: <Search size={20} />,
-    gif: '/diff_inspect_state.gif',
+    id: 'dataviz',
+    title: "Analyse Visuelle Complète",
+    icon: <BarChart3 size={20} />,
+    gif: '/processing_state.gif',
     content: (
       <div className="space-y-4">
         <p>
-          Vous avez deux versions d'un fichier (ex: <em>Paye_V1.xlsx</em> et <em>Paye_V2.xlsx</em>) et vous ne savez pas ce qui a changé ?
-        </p>
-        <p>
-          Utilisez l'outil <strong>Comparer Jeux</strong> dans la boîte à outils.
+          Visualisez vos données instantanément via le bouton <strong>Analyse Visuelle</strong> :
         </p>
         <ul className="list-disc ml-5 space-y-2">
-          <li>Je charge le second fichier en mémoire.</li>
-          <li>Je compare ligne par ligne.</li>
-          <li>Je vous dis exactement combien de lignes ont été ajoutées ou supprimées.</li>
+          <li><strong>Histogrammes :</strong> Distribution statistique automatique pour les colonnes numériques.</li>
+          <li><strong>Outliers (Z-Score) :</strong> Détection des anomalies statistiques (valeurs extrêmes).</li>
+          <li><strong>Dual KPI :</strong> Comparez deux métriques (ex: Nombre de ventes vs Montant Total) sur un même graphique.</li>
+          <li><strong>Timeline :</strong> Visualisez la densité temporelle de vos événements.</li>
+          <li><strong>Bullet Chart :</strong> Idéal pour comparer une performance (barre) à un objectif (cible).</li>
+          <li><strong>Nuage de Mots :</strong> Analysez rapidement les termes les plus fréquents dans vos textes.</li>
         </ul>
       </div>
     )
   },
   {
-    id: 'query',
-    title: "Le Chef des Requêtes",
-    icon: <HelpCircle size={20} />,
-    gif: '/query_chef_state.gif',
+    id: 'geo',
+    title: "Cartographie Interactive",
+    icon: <MapIcon size={20} />,
+    gif: '/processing_state.gif',
     content: (
       <div className="space-y-4">
         <p>
-          Parfois, le nettoyage manuel ne suffit pas. Vous avez besoin de poser des questions complexes à vos données.
+          Si je détecte des colonnes GPS (lat/lon), je génère une carte interactive.
         </p>
         <p>
-          Mon mode <strong>Smart Query</strong> (disponible via l'API Cloud) me permet de comprendre le langage naturel. Vous pouvez me demander :
-          <br/>
-          <em className="text-primary">"Montre-moi toutes les ventes de Jasmin supérieures à 1000€"</em>
-        </p>
-        <p>
-          Je traduis cela en SQL et je vous montre le résultat. Et n'oubliez pas : vous pouvez cacher les colonnes sensibles avant que je pose la question au Cloud !
+          <strong>Nouveau (v1.5) : Drilldown !</strong><br/>
+          Cliquez sur une région ou un point pour <strong>filtrer</strong> automatiquement l'ensemble du jeu de données sur cette zone géographique. Idéal pour analyser des performances régionales.
         </p>
       </div>
     )
   },
   {
-    id: 'processing',
-    title: "Nettoyage & Sécurité",
+    id: 'legacy',
+    title: "Gestionnaire de Schéma & AS400",
+    icon: <Layers size={20} />,
+    gif: '/diff_inspect_state.gif',
+    content: (
+      <div className="space-y-4">
+        <p>
+          Préparez vos fichiers pour l'AS400 (IBM i) avec précision :
+        </p>
+        <ul className="list-disc ml-5 space-y-2">
+          <li><strong>Mode AS400 :</strong> Renommage forcé en majuscules, sans accent, max 10 caractères.</li>
+          <li><strong>Réorganisation :</strong> Changez l'ordre des colonnes par simple glisser-déposer (ou flèches).</li>
+          <li><strong>Import Copybook :</strong> Collez vos définitions COBOL (ex: <code>01 NOM PIC X(10)</code>) pour mapper automatiquement les noms de colonnes !</li>
+        </ul>
+      </div>
+    )
+  },
+  {
+    id: 'dedup',
+    title: "Dédoublonnage Intelligent",
+    icon: <Wand2 size={20} />,
+    gif: '/processing_state.gif',
+    content: (
+      <div className="space-y-4">
+        <p>
+          Ne laissez plus passer les doublons.
+        </p>
+        <ul className="list-disc ml-5 space-y-2">
+          <li><strong>Mode Strict :</strong> Supprime les lignes 100% identiques.</li>
+          <li><strong>Mode Intelligent (Fuzzy) :</strong> Détecte les doublons même avec des différences de casse ou d'espaces (ex: "Robertet" = " robertet ").</li>
+          <li><strong>Prévisualisation :</strong> Je vous dis exactement combien de lignes vont sauter AVANT que vous cliquiez.</li>
+        </ul>
+      </div>
+    )
+  },
+  {
+    id: 'security',
+    title: "Sécurité & Anonymisation",
     icon: <ShieldCheck size={20} />,
     gif: '/processing_state.gif',
     content: (
       <div className="space-y-4">
         <p>
-          Ma spécialité, c'est la <strong>conformité</strong>.
-        </p>
-        <p>
-          Pour l'AS400 (IBM iSeries), je vérifie :
+          La sécurité est ma priorité.
         </p>
         <ul className="list-disc ml-5 space-y-2">
-          <li>Que vos noms de colonnes ne dépassent pas 30 caractères.</li>
-          <li>Qu'il n'y a pas de caractères interdits (Emojis, accents exotiques) qui briseraient l'import.</li>
-          <li>Que l'encodage est bien compatible (Windows-1252).</li>
+          <li><strong>Scan de Secrets :</strong> Le Bulletin de Santé scanne vos colonnes pour détecter des fuites potentielles (mots clés : password, api_key, token...).</li>
+          <li><strong>Anonymisation (PII) :</strong> Un nouvel outil dans la boîte à outils permet de remplacer le contenu d'une colonne sensible par des astérisques (*****).</li>
         </ul>
-        <p>
-          Je peux aussi réparer vos dates automatiquement (US vs FR) et nettoyer les espaces inutiles.
-        </p>
       </div>
     )
   },
   {
-    id: 'errors',
-    title: "Gestion des Erreurs",
-    icon: <AlertTriangle size={20} />,
-    gif: '/error_state.gif',
+    id: 'export',
+    title: "Export & PowerBI",
+    icon: <FileOutput size={20} />,
+    gif: '/query_chef_state.gif',
     content: (
       <div className="space-y-4">
         <p>
-          Si je deviens rouge (Indigestion), c'est qu'il y a un problème critique.
-        </p>
-        <p>
-          Les causes les plus fréquentes :
+          Une fois nettoyées, exportez vos données où vous voulez :
         </p>
         <ul className="list-disc ml-5 space-y-2">
-          <li>Le fichier est corrompu.</li>
-          <li>Vous essayez de comparer deux fichiers qui n'ont pas du tout la même structure (colonnes différentes).</li>
-          <li>Une requête SQL personnalisée est invalide.</li>
+          <li><strong>Formats :</strong> CSV, Excel, JSON (Web), Parquet (Big Data).</li>
+          <li><strong>Thème PowerBI :</strong> Vous aimez mes couleurs ? Téléchargez le fichier de thème <code>.json</code> pour l'appliquer à vos rapports PowerBI !</li>
         </ul>
-        <p>
-          Pas de panique ! Rien n'est cassé sur votre ordinateur. Rechargez simplement le fichier ou annulez la dernière action.
-        </p>
       </div>
     )
   }
@@ -135,7 +153,7 @@ const FAQPage: React.FC<FAQPageProps> = ({ isOpen, onClose }) => {
           <div className="p-2 bg-primary/20 rounded-lg text-primary">
             <HelpCircle size={24} />
           </div>
-          <h2 className="text-lg font-bold text-white uppercase tracking-wider">Comment ça marche ?</h2>
+          <h2 className="text-lg font-bold text-white uppercase tracking-wider">Guide v1.5</h2>
         </div>
         
         <div className="flex-1 overflow-y-auto p-4 space-y-2">
@@ -192,7 +210,7 @@ const FAQPage: React.FC<FAQPageProps> = ({ isOpen, onClose }) => {
                       Guide
                     </span>
                     <span className="px-3 py-1 rounded-full bg-surface-active border border-border-dark text-xs text-primary uppercase font-bold">
-                      v1.2
+                      v1.5
                     </span>
                   </div>
                 </div>
