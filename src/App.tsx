@@ -24,7 +24,7 @@ import { EmailValidatorModal } from "./components/EmailValidatorModal";
 import { CurrencyNormalizerModal } from "./components/CurrencyNormalizerModal";
 import { UnitConverterModal } from "./components/UnitConverterModal";
 import { MojibakeModal } from "./components/MojibakeModal";
-import { MainframizerModal } from "./components/MainframizerModal";
+import { SchemaManagerModal } from "./components/SchemaManagerModal";
 import { FixedWidthModal } from "./components/FixedWidthModal";
 import { DateDimensionModal } from "./components/DateDimensionModal";
 import { DAXModal } from "./components/DAXModal";
@@ -47,11 +47,9 @@ function App() {
     columns, 
     rowCount, 
     fileMeta, 
-    isLoading, 
-    selectedColumn, 
-    selectColumn,
-    searchQuery,
-    setSearchQuery,
+        isLoading,
+        selectedColumn,
+        searchQuery,    setSearchQuery,
     setSort,
     hasUnsavedChanges,
     resetData,
@@ -81,7 +79,7 @@ function App() {
   const [isCurrencyOpen, setIsCurrencyOpen] = useState(false);
   const [isUnitOpen, setIsUnitOpen] = useState(false);
   const [isMojibakeOpen, setIsMojibakeOpen] = useState(false);
-  const [isMainframeOpen, setIsMainframeOpen] = useState(false);
+  const [isSchemaOpen, setIsSchemaOpen] = useState(false);
   const [isFixedOpen, setIsFixedOpen] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [isDAXOpen, setIsDAXOpen] = useState(false);
@@ -109,7 +107,7 @@ function App() {
           setIsSQLOpen, setIsMapOpen, setIsJoinOpen, setIsPivotOpen, setIsUnpivotOpen,
           setIsRegexOpen, setIsFormulaOpen, setIsLogicOpen, setIsDedupOpen, setIsSmartDateOpen,
           setIsNameOpen, setIsPhoneOpen, setIsEmailOpen, setIsCurrencyOpen, setIsUnitOpen,
-          setIsMojibakeOpen, setIsMainframeOpen, setIsFixedOpen, setIsCalendarOpen, setIsDAXOpen,
+          setIsMojibakeOpen, setIsSchemaOpen, setIsFixedOpen, setIsCalendarOpen, setIsDAXOpen,
           setIsRestoreOpen
         ];
         setters.forEach(s => s(false));
@@ -140,7 +138,8 @@ function App() {
     onDrop,
     accept: {
       'text/csv': ['.csv'],
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx']
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+      'application/json': ['.json']
     },
     maxFiles: 1,
     noClick: !!fileMeta 
@@ -292,7 +291,7 @@ function App() {
       <CurrencyNormalizerModal isOpen={isCurrencyOpen} onClose={() => setIsCurrencyOpen(false)} />
       <UnitConverterModal isOpen={isUnitOpen} onClose={() => setIsUnitOpen(false)} />
       <MojibakeModal isOpen={isMojibakeOpen} onClose={() => setIsMojibakeOpen(false)} />
-      <MainframizerModal isOpen={isMainframeOpen} onClose={() => setIsMainframeOpen(false)} />
+      <SchemaManagerModal isOpen={isSchemaOpen} onClose={() => setIsSchemaOpen(false)} />
       <FixedWidthModal isOpen={isFixedOpen} onClose={() => setIsFixedOpen(false)} />
       <DateDimensionModal isOpen={isCalendarOpen} onClose={() => setIsCalendarOpen(false)} />
       <DAXModal isOpen={isDAXOpen} onClose={() => setIsDAXOpen(false)} />
@@ -378,10 +377,10 @@ function App() {
                   onHeaderClicked={(col) => {
                     const c = gridColumns[col];
                     if (c) {
-                      selectColumn(c.title);
                       setSort(c.title);
                     }
                   }}
+                  rowMarkers="number"
                   gridSelection={undefined}
                   onGridSelectionChange={() => {}}
                   smoothScrollX
@@ -420,7 +419,7 @@ function App() {
           onOpenCurrency={() => openModal(setIsCurrencyOpen, "Taux de change... (blague)")}
           onOpenUnit={() => openModal(setIsUnitOpen, "Calibration des mesures...")}
           onOpenMojibake={() => openModal(setIsMojibakeOpen, "Décodage des hiéroglyphes...")}
-          onOpenMainframe={() => openModal(setIsMainframeOpen, "Connexion au Mainframe...")}
+          onOpenSchema={() => openModal(setIsSchemaOpen, "Gestion des noms et de l'ordre...")}
           onOpenFixed={() => openModal(setIsFixedOpen, "Calibrage de l'écran vert...")}
           onOpenCalendar={() => openModal(setIsCalendarOpen, "Génération du temps...")}
           onOpenDAX={() => openModal(setIsDAXOpen, "Rédaction des mesures...")}

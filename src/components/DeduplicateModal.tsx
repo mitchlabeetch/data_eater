@@ -13,6 +13,7 @@ export const DeduplicateModal: React.FC<DeduplicateModalProps> = ({ isOpen, onCl
   const { columns, executeMutation, rowCount } = useDataStore();
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [strategy, setStrategy] = useState<'FIRST' | 'LAST'>('FIRST');
+  const [matchMode, setMatchMode] = useState<'EXACT' | 'SMART'>('EXACT');
   const [isProcessing, setIsProcessing] = useState(false);
   const [previewCount, setPreviewCount] = useState<number | null>(null);
 
@@ -23,7 +24,11 @@ export const DeduplicateModal: React.FC<DeduplicateModalProps> = ({ isOpen, onCl
         return;
       }
       try {
-        const cols = selectedKeys.map(k => `"${k}"`).join(', ');
+        // Build keys based on mode
+        const cols = selectedKeys.map(k => 
+          matchMode === 'EXACT' ? `"${k}"` : `TRIM(UPPER("${k}"))`
+        ).join(', ');
+
         // Count total rows minus distinct combinations of selected columns
         const sql = `
           SELECT (SELECT count(*) FROM current_dataset) - 
@@ -37,23 +42,36 @@ export const DeduplicateModal: React.FC<DeduplicateModalProps> = ({ isOpen, onCl
     };
     const timeout = setTimeout(fetchPreview, 300); // Debounce
     return () => clearTimeout(timeout);
-  }, [selectedKeys]);
+  }, [selectedKeys, matchMode]);
 
   const handleDedup = async () => {
     if (selectedKeys.length === 0) return;
     setIsProcessing(true);
 
     try {
-      const partitionCols = selectedKeys.map(k => `"${k}"`).join(', ');
+      // Build partition keys
+      const partitionCols = selectedKeys.map(k => 
+        matchMode === 'EXACT' ? `"${k}"` : `TRIM(UPPER("${k}"))`
+      ).join(', ');
+      
       const orderDir = strategy === 'FIRST' ? 'ASC' : 'DESC';
-      const sql = `CREATE TABLE dedup_temp AS SELECT * EXCLUDE (rn) FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY ${partitionCols} ORDER BY rowid ${orderDir}) as rn FROM current_dataset) WHERE rn = 1`;
-      await query(sql);
-      await executeMutation(`DROP TABLE current_dataset`, "Préparation dédoublonnage");
-      await executeMutation(`ALTER TABLE dedup_temp RENAME TO current_dataset`, `Dédoublonnage sur ${selectedKeys.length} colonnes`);
+      
+      const sql = `
+        CREATE OR REPLACE TABLE dedup_temp AS 
+        SELECT * EXCLUDE (rn) FROM (
+          SELECT *, ROW_NUMBER() OVER (PARTITION BY ${partitionCols} ORDER BY rowid ${orderDir}) as rn 
+          FROM current_dataset
+        ) WHERE rn = 1;
+        
+        DROP TABLE current_dataset;
+        ALTER TABLE dedup_temp RENAME TO current_dataset;
+      `;
+      
+      await executeMutation(sql, `Dédoublonnage (${matchMode === 'SMART' ? 'Intelligent' : 'Strict'}) : -${previewCount} lignes`);
       onClose();
     } catch (e) {
       console.error(e);
-      alert("Erreur lors du dédoublonnage.");
+      alert("Erreur lors du dédoublonnage. Vérifiez la console.");
     } finally {
       setIsProcessing(false);
     }
@@ -78,35 +96,46 @@ export const DeduplicateModal: React.FC<DeduplicateModalProps> = ({ isOpen, onCl
         <div className="p-6 space-y-6">
           <div className="space-y-3">
             <div className="flex justify-between items-end">
-                <label className="text-[10px] font-black uppercase tracking-widest text-text-muted">1. Colonnes à vérifier (Unicité)</label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-text-muted">1. Colonnes Clés (Définition du Doublon)</label>
                 <div className="flex gap-2">
-                    <button onClick={selectAll} className="text-[10px] flex items-center gap-1 text-primary hover:text-white transition-colors"><CheckSquare size={12}/> Tout Cocher</button>
-                    <button onClick={selectNone} className="text-[10px] flex items-center gap-1 text-text-muted hover:text-white transition-colors"><Square size={12}/> Tout Décocher</button>
+                    <button onClick={selectAll} className="text-[10px] flex items-center gap-1 text-primary hover:text-white transition-colors"><CheckSquare size={12}/> Tout</button>
+                    <button onClick={selectNone} className="text-[10px] flex items-center gap-1 text-text-muted hover:text-white transition-colors"><Square size={12}/> Rien</button>
                 </div>
             </div>
-            <p className="text-[11px] text-text-muted italic">Si ces colonnes sont identiques, la ligne est considérée comme un doublon.</p>
+            
+            {/* MATCH MODE TOGGLE */}
+            <div className="flex p-1 bg-background-dark border border-border-dark rounded-lg mb-2">
+               <button onClick={() => setMatchMode('EXACT')} className={clsx("flex-1 py-1.5 rounded text-[10px] font-bold transition-all", matchMode === 'EXACT' ? "bg-surface-active text-white shadow-sm" : "text-text-muted hover:text-white")}>
+                 STRICT (Identique)
+               </button>
+               <button onClick={() => setMatchMode('SMART')} className={clsx("flex-1 py-1.5 rounded text-[10px] font-bold transition-all", matchMode === 'SMART' ? "bg-primary text-background-dark shadow-sm" : "text-text-muted hover:text-white")}>
+                 INTELLIGENT (Sans casse/espaces)
+               </button>
+            </div>
+
+            <p className="text-[11px] text-text-muted italic">Les lignes ayant les mêmes valeurs pour <strong className="text-white">toutes</strong> les colonnes cochées seront considérées comme des doublons.</p>
             <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto p-1 custom-scrollbar">
               {columns.map(c => (
-                <button key={c.name} onClick={() => toggleKey(c.name)} className={clsx("text-left px-2 py-1.5 rounded border text-[10px] font-mono transition-all", selectedKeys.includes(c.name) ? "bg-primary/20 border-primary text-primary font-bold" : "bg-background-dark border-border-dark text-text-muted hover:border-primary/30")}>{c.name}</button>
+                <button key={c.name} onClick={() => toggleKey(c.name)} className={clsx("text-left px-2 py-1.5 rounded border text-[10px] font-mono transition-all truncate", selectedKeys.includes(c.name) ? "bg-primary/20 border-primary text-primary font-bold" : "bg-background-dark border-border-dark text-text-muted hover:border-primary/30")}>{c.name}</button>
               ))}
             </div>
           </div>
           <div className="space-y-3">
-            <label className="text-[10px] font-black uppercase tracking-widest text-text-muted">2. Règle de Conservation</label>
+            <label className="text-[10px] font-black uppercase tracking-widest text-text-muted">2. Stratégie de Conservation</label>
             <div className="flex gap-4">
               <button onClick={() => setStrategy('FIRST')} className={clsx("flex-1 p-4 rounded-xl border transition-all text-left space-y-1", strategy === 'FIRST' ? "bg-primary/5 border-primary" : "bg-surface-active/30 border-border-dark opacity-50")}>
-                <p className="text-xs font-bold text-white">Garder le premier</p>
-                <p className="text-[10px] text-text-muted">Conserve la ligne qui apparaît en premier dans le fichier.</p>
+                <p className="text-xs font-bold text-white">Garder la première</p>
+                <p className="text-[10px] text-text-muted">Conserve la ligne apparaissant en premier (Originale).</p>
               </button>
               <button onClick={() => setStrategy('LAST')} className={clsx("flex-1 p-4 rounded-xl border transition-all text-left space-y-1", strategy === 'LAST' ? "bg-primary/5 border-primary" : "bg-surface-active/30 border-border-dark opacity-50")}>
-                <p className="text-xs font-bold text-white">Garder le dernier</p>
-                <p className="text-[10px] text-text-muted">Conserve la version la plus récente (dernière ligne).</p>
+                <p className="text-xs font-bold text-white">Garder la dernière</p>
+                <p className="text-[10px] text-text-muted">Conserve la ligne la plus récente (Dernière).</p>
               </button>
             </div>
           </div>
           
           <div className="bg-surface-active/50 rounded-lg p-3 border border-border-dark flex items-center justify-between">
-             <span className="text-xs font-medium text-text-muted">Estimation suppression :</span>
+             <span className="text-xs font-medium text-text-muted">Lignes à supprimer (Doublons) :</span>
              <span className={clsx("text-sm font-black mono", previewCount && previewCount > 0 ? "text-red-400" : "text-emerald-400")}>
                 {previewCount !== null ? (
                     <>{previewCount.toLocaleString()} ligne{previewCount > 1 ? 's' : ''} ({((previewCount / rowCount) * 100).toFixed(1)}%)</>

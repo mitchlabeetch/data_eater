@@ -14,7 +14,20 @@ export const HealthDashboardModal: React.FC<HealthDashboardModalProps> = ({ isOp
   const setMascot = useMascotStore((s) => s.setMascot);
   const [securityIssues, setSecurityIssues] = useState<string[]>([]);
 
-  if (!isOpen || !healthReport) return null;
+  if (!isOpen) return null;
+
+  // Loading/Error State
+  if (!healthReport || !healthReport.issues || !healthReport.as400Report) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div className="bg-surface-dark border border-surface-active rounded-xl shadow-2xl p-8 flex flex-col items-center gap-4">
+           <span className="material-symbols-outlined text-primary text-4xl animate-spin">autorenew</span>
+           <p className="text-white font-bold">Analyse de santé en cours...</p>
+           <button onClick={onClose} className="text-xs text-text-muted hover:text-white underline">Annuler</button>
+        </div>
+      </div>
+    );
+  }
 
   const { overallScore, issues, as400Report, columnHealth, rowCount } = healthReport;
 

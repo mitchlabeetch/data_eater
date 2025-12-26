@@ -6,6 +6,7 @@ export interface SniffResult {
   delimiter: string;
   hasHeader: boolean;
   newline: '\r\n' | '\n' | '\r';
+  format: 'CSV' | 'JSON';
 }
 
 export interface JaggedRowError {
@@ -94,22 +95,36 @@ export const sniffFile = async (file: File): Promise<SniffResult> => {
         // 2. Decode for text analysis
         const decoder = new TextDecoder(encoding === 'WINDOWS-1252' ? 'windows-1252' : 'utf-8');
         const text = decoder.decode(uint8);
+        const trimmed = text.trim();
+
+        // 3. Detect Format (JSON vs CSV)
+        let format: 'CSV' | 'JSON' = 'CSV';
+        if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+           try {
+             // Quick check if it looks like JSON structure
+             JSON.parse(trimmed.substring(0, Math.min(trimmed.length, 10000)) + (trimmed.length > 10000 && trimmed.startsWith('[') ? ']' : '}'));
+             format = 'JSON';
+           } catch {
+             // Fallback to CSV if parsing fails heavily, but simple heuristic is often enough
+             if (trimmed.startsWith('[') || trimmed.startsWith('{')) format = 'JSON'; 
+           }
+        }
         
-        // 3. Detect Delimiter
-        const delimiter = detectDelimiter(text);
+        // 4. Detect Delimiter
+        const delimiter = format === 'JSON' ? '' : detectDelimiter(text);
         
-        // 4. Detect Newline
+        // 5. Detect Newline
         const newline = text.includes('\r\n') ? '\r\n' : (text.includes('\r') ? '\r' : '\n');
 
-        // 5. Detect Header (Simple Heuristic: First row usually has different types than second)
-        // For now, we assume true as default for data files, can be refined later with type checking
+        // 6. Detect Header
         const hasHeader = true;
 
         resolve({
           encoding,
           delimiter,
           hasHeader,
-          newline
+          newline,
+          format
         });
       } catch (err) {
         reject(err);

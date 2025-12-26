@@ -92,34 +92,42 @@ export const ingestCSV = async (file: File) => {
         // Sniff for Encoding and Delimiter
         let delimiter = ',';
         let encoding = 'UTF-8';
+        let format = 'CSV';
         
         try {
             const sniff = await sniffFile(file);
             delimiter = sniff.delimiter;
             encoding = sniff.encoding;
+            format = sniff.format || 'CSV';
             console.log("🕵️‍♀️ Sniffer Result:", sniff);
         } catch (e) {
             console.warn("Sniff failed, falling back to defaults", e);
         }
 
         const encodingParam = encoding === 'WINDOWS-1252' ? ", encoding='latin-1'" : "";
-        const readCsvSql = `read_csv('${fileNameToLoad}', 
+        
+        let readSql = '';
+        if (format === 'JSON') {
+             readSql = `read_json_auto('${fileNameToLoad}')`;
+        } else {
+             readSql = `read_csv('${fileNameToLoad}', 
                 header=true,
                 delim='${delimiter}',
                 normalize_names=true,
                 ignore_errors=true
                 ${encodingParam}
             )`;
+        }
 
         try {
             console.log("Attempting to materialize table into memory...");
-            await conn.query(`CREATE TABLE ${tableName} AS SELECT * FROM ${readCsvSql}`);
+            await conn.query(`CREATE TABLE ${tableName} AS SELECT * FROM ${readSql}`);
         } catch (e) {
             console.warn("Memory limit exceeded or creation failed. Falling back to ZERO-COPY VIEW mode.", e);
             // Fallback: Create a View (Zero-Copy)
             // This reads directly from the file handle on every query. Slower, but infinite scale.
             await conn.query(`DROP TABLE IF EXISTS ${tableName}`); // Cleanup partial
-            await conn.query(`CREATE VIEW ${tableName} AS SELECT * FROM ${readCsvSql}`);
+            await conn.query(`CREATE VIEW ${tableName} AS SELECT * FROM ${readSql}`);
         }
     }
     

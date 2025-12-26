@@ -31,8 +31,8 @@ import {
   Wand2,
   Monitor,
   Ruler,
-  Database,
-  Sigma
+  Sigma,
+  Settings2
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -51,7 +51,7 @@ interface ToolboxProps {
   onOpenCurrency: () => void;
   onOpenUnit: () => void;
   onOpenMojibake: () => void;
-  onOpenMainframe: () => void;
+  onOpenSchema: () => void;
   onOpenFixed: () => void;
   onOpenCalendar: () => void;
   onOpenDAX: () => void;
@@ -60,7 +60,7 @@ interface ToolboxProps {
 const Toolbox: React.FC<ToolboxProps> = ({ 
   onOpenSplit, onOpenJoin, onOpenUnpivot, onOpenRegex, onOpenFormula,
   onOpenLogic, onOpenDedup, onOpenSmartDate, onOpenName, onOpenPhone,
-  onOpenEmail, onOpenCurrency, onOpenUnit, onOpenMojibake, onOpenMainframe,
+  onOpenEmail, onOpenCurrency, onOpenUnit, onOpenMojibake, onOpenSchema,
   onOpenFixed, onOpenCalendar, onOpenDAX
 }) => {
   const { selectedColumn, executeMutation, fetchRows, columns } = useDataStore();
@@ -146,7 +146,7 @@ const Toolbox: React.FC<ToolboxProps> = ({
         </div>
         <div className="space-y-2">
           <h4 className="text-[10px] font-bold uppercase tracking-wider text-subtle ml-1">Legacy (Grasse)</h4>
-          <ToolButton icon={<Database size={14} />} label="Mainframizer (DB2)" onClick={onOpenMainframe} disabled={false} />
+          <ToolButton icon={<Settings2 size={14} />} label="Gestionnaire Schéma" subtitle="Renommer & Ordonner" onClick={onOpenSchema} disabled={false} />
           <ToolButton icon={<Wand2 size={14} />} label="Réparer Encodage" onClick={onOpenMojibake} disabled={!selectedColumn} />
           <ToolButton icon={<ShieldCheck size={14} />} label="Valider AS400" onClick={handleAS400Check} />
           <ToolButton icon={<Monitor size={14} />} label="Green Screen" onClick={onOpenFixed} disabled={false} />

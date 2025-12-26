@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import { useDataStore } from '../stores/dataStore';
 import { query } from '../services/duckdb';
-import { BarChart3, PieChart as PieIcon, LineChart as LineIcon, Target } from 'lucide-react';
+import { BarChart3, PieChart as PieIcon, LineChart as LineIcon, Target, Activity } from 'lucide-react';
 import clsx from 'clsx';
 
 interface DataVizModalProps {
@@ -19,14 +19,14 @@ const COLORS = ['#13ec5b', '#0fa640', '#9db9a6', '#55695e', '#28392e', '#1c2a21'
 export const DataVizModal: React.FC<DataVizModalProps> = ({ isOpen, onClose }) => {
   const { selectedColumn, columnStats, columns } = useDataStore();
   const [vizData, setVizData] = useState<any[]>([]);
-  const [vizType, setVizType] = useState<'AUTO' | 'PIE' | 'BAR' | 'LINE' | 'BULLET'>('AUTO');
+  const [vizType, setVizType] = useState<'AUTO' | 'PIE' | 'BAR' | 'LINE' | 'BULLET' | 'HISTOGRAM'>('AUTO');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (isOpen && selectedColumn) {
       loadSpecializedData();
     }
-  }, [isOpen, selectedColumn]);
+  }, [isOpen, selectedColumn, vizType]);
 
   const loadSpecializedData = async () => {
     if (!selectedColumn) return;
@@ -34,9 +34,30 @@ export const DataVizModal: React.FC<DataVizModalProps> = ({ isOpen, onClose }) =
     
     const colDef = columns.find(c => c.name === selectedColumn);
     const type = colDef?.type.toUpperCase() || '';
+    const isNumeric = type.includes('INT') || type.includes('DOUBLE') || type.includes('DECIMAL');
 
     try {
-      if (type.includes('DATE') || type.includes('TIMESTAMP')) {
+      if (vizType === 'HISTOGRAM' && isNumeric) {
+        // Calculate dynamic bin size
+        const statsSql = `SELECT MIN("${selectedColumn}") as min_val, MAX("${selectedColumn}") as max_val FROM current_dataset`;
+        const stats = await query(statsSql);
+        const min = Number(stats[0].min_val);
+        const max = Number(stats[0].max_val);
+        const range = max - min;
+        const binSize = range / 20; // 20 bins
+
+        const sql = `
+          SELECT 
+            floor(("${selectedColumn}" - ${min}) / ${binSize}) * ${binSize} + ${min} as bin,
+            COUNT(*) as count 
+          FROM current_dataset 
+          WHERE "${selectedColumn}" IS NOT NULL 
+          GROUP BY bin 
+          ORDER BY bin ASC
+        `;
+        const res = await query(sql);
+        setVizData(res.map(r => ({ name: Number(r.bin).toFixed(2), value: r.count })));
+      } else if (type.includes('DATE') || type.includes('TIMESTAMP')) {
         const sql = `
           SELECT "${selectedColumn}"::DATE as date, COUNT(*) as count 
           FROM current_dataset 
@@ -47,15 +68,15 @@ export const DataVizModal: React.FC<DataVizModalProps> = ({ isOpen, onClose }) =
         `;
         const res = await query(sql);
         setVizData(res.map(r => ({ name: r.date, value: r.count })));
-        setVizType('LINE');
+        if (vizType === 'AUTO') setVizType('LINE');
       } else {
         const data = columnStats?.topValues?.map(v => ({ 
           name: v.value || '(Vide)', 
           value: v.count,
-          target: Math.floor(v.count * (1 + Math.random() * 0.5)) // Mock target for Bullet
+          target: Math.floor(v.count * (1 + Math.random() * 0.5))
         })) || [];
         setVizData(data);
-        setVizType(columnStats?.sum !== undefined ? 'BAR' : 'PIE');
+        if (vizType === 'AUTO') setVizType(columnStats?.sum !== undefined ? 'BAR' : 'PIE');
       }
     } catch (e) {
       console.error("Viz Query Failed", e);
@@ -65,6 +86,8 @@ export const DataVizModal: React.FC<DataVizModalProps> = ({ isOpen, onClose }) =
   };
 
   if (!isOpen || !selectedColumn || !columnStats) return null;
+
+  const isNumeric = columns.find(c => c.name === selectedColumn)?.type.match(/INT|DOUBLE|DECIMAL/i);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
@@ -84,6 +107,9 @@ export const DataVizModal: React.FC<DataVizModalProps> = ({ isOpen, onClose }) =
              <button onClick={() => setVizType('LINE')} className={clsx("p-1.5 rounded transition-colors", vizType === 'LINE' ? "bg-primary text-black" : "text-text-muted hover:text-white")} title="Lignes"><LineIcon size={16} /></button>
              <button onClick={() => setVizType('PIE')} className={clsx("p-1.5 rounded transition-colors", vizType === 'PIE' ? "bg-primary text-black" : "text-text-muted hover:text-white")} title="Camembert"><PieIcon size={16} /></button>
              <button onClick={() => setVizType('BULLET')} className={clsx("p-1.5 rounded transition-colors", vizType === 'BULLET' ? "bg-primary text-black" : "text-text-muted hover:text-white")} title="Bullet (Cible)"><Target size={16} /></button>
+             {isNumeric && (
+               <button onClick={() => setVizType('HISTOGRAM')} className={clsx("p-1.5 rounded transition-colors", vizType === 'HISTOGRAM' ? "bg-primary text-black" : "text-text-muted hover:text-white")} title="Histogramme (Distribution)"><Activity size={16} /></button>
+             )}
           </div>
           <button onClick={onClose} className="p-2 hover:bg-surface-active rounded-lg transition-colors text-text-muted hover:text-white">
             <span className="material-symbols-outlined">close</span>
@@ -112,6 +138,14 @@ export const DataVizModal: React.FC<DataVizModalProps> = ({ isOpen, onClose }) =
                   <YAxis dataKey="name" type="category" width={100} stroke="#9db9a6" fontSize={10} />
                   <Tooltip contentStyle={{ backgroundColor: '#1c2a21', borderColor: '#28392e', color: '#fff' }} itemStyle={{ color: '#13ec5b' }} />
                   <Bar dataKey="value" fill="#13ec5b" radius={[0, 4, 4, 0]} barSize={24} />
+                </BarChart>
+            ) : vizType === 'HISTOGRAM' ? (
+                <BarChart data={vizData} barGap={0} barCategoryGap={1}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#28392e" vertical={false} />
+                  <XAxis dataKey="name" stroke="#55695e" fontSize={9} interval={2} />
+                  <YAxis stroke="#55695e" fontSize={10} />
+                  <Tooltip contentStyle={{ backgroundColor: '#1c2a21', borderColor: '#28392e', color: '#fff' }} />
+                  <Bar dataKey="value" fill="#13ec5b" name="Fréquence" />
                 </BarChart>
             ) : vizType === 'BULLET' ? (
                 <ComposedChart layout="vertical" data={vizData} margin={{ left: 40 }}>
