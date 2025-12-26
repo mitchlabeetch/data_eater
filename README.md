@@ -171,7 +171,7 @@ sudo apt install libwebkit2gtk-4.1-dev \
 
 1. **Clone the repository:**
 ```bash
-git clone https://github.com/mitchlabeetch/data_eater.git
+git clone https://github.com/YOUR-USERNAME/data_eater.git
 cd data_eater
 ```
 
@@ -325,25 +325,41 @@ npm run build
 
 **This application was originally built as a gift for a specific company and contains branded content throughout the codebase and UI.**
 
-Before sharing or deploying for your organization, you **MUST** remove or adapt all references to:
+Before sharing or deploying for your organization, you should remove or adapt all references to:
 
-- **"Robertet"** - Company name
-- **"Grasse"** - Location references  
-- **Company-specific terminology**
+- **"Robertet"** - Company name (found in 12+ files)
+- **"Grasse"** - Location references (4+ files)
+- **Company-specific terminology** in error messages and UI
 - **Branded assets and imagery**
+- **French-language content** specific to the original use case
 
 See [CUSTOMIZATION.md](./CUSTOMIZATION.md) for a complete list of files containing branded content and instructions on how to rebrand the application.
 
 ### 📋 Files to Customize
 
-Key files containing brand references:
+Key files containing brand references (see CUSTOMIZATION.md for complete list):
 - `index.html` - Page title
 - `src-tauri/tauri.conf.json` - App identifier and title
 - `src/lib/constants.ts` - Company name and configuration
+- `src/lib/errors.json` - Error messages with company references
+- `src/stores/mascotStore.ts` - Recipe messages
+- `src/services/smartQueryService.ts` - AI prompts
+- `src/services/healthService.ts` - Pattern comments
 - `src/components/FAQPage.tsx` - Help text and descriptions
 - `src/components/GeoMapModal.tsx` - Default map coordinates
-- `src/services/smartQueryService.ts` - AI prompts
+- `src/components/FixedWidthModal.tsx` - Modal subtitles
+- `src/components/EmailValidatorModal.tsx` - Example domains
+- `src/components/ConditionalLogicModal.tsx` - Placeholder examples
 - Multiple other component files with French text and branding
+
+**Search commands to find all references:**
+```bash
+# Find all "Robertet" references
+grep -ri "robertet" src/
+
+# Find all "Grasse" references
+grep -ri "grasse" src/
+```
 
 ### 🔒 Data Privacy
 

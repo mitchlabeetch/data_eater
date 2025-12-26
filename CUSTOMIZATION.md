@@ -32,7 +32,12 @@ While you're **free to use** this software, you **must adapt** these references 
 
 ### Primary Brand: "Robertet"
 
-Files containing "Robertet" references (line numbers are approximate and may change as code evolves):
+Files containing "Robertet" references (line numbers are approximate and may change as code evolves - use search commands for accuracy):
+
+**💡 Recommended: Use grep to find all references:**
+```bash
+grep -ri "robertet" src/
+```
 
 | File | Line(s) | Content |
 |------|---------|---------|
@@ -51,7 +56,12 @@ Files containing "Robertet" references (line numbers are approximate and may cha
 
 ### Location: "Grasse"
 
-Files containing "Grasse" references (line numbers are approximate and may change as code evolves):
+Files containing "Grasse" references (line numbers are approximate and may change as code evolves - use search commands for accuracy):
+
+**💡 Recommended: Use grep to find all references:**
+```bash
+grep -ri "grasse" src/
+```
 
 | File | Line(s) | Content |
 |------|---------|---------|
