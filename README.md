@@ -4,6 +4,7 @@
   <img src="public/DE_ICON.png" alt="Data Eater Logo" width="120"/>
   
   <p><strong>A powerful, desktop data cleaning and transformation tool built with love as a gift 🎁</strong></p>
+  <p><strong>⚠️ Please read this file before using! - App stills contains bugs, use carefully</strong></p>
   
   <p>
     <img src="https://img.shields.io/badge/version-1.2.0-brightgreen" alt="Version"/>
@@ -43,6 +44,7 @@ This application runs entirely on your local machine, ensuring complete data pri
 ### 🎁 Built as a Present
 
 Data Eater was originally created as a gift for data professionals, with an initial focus on a specific company's workflow. Feel free to fork, adapt, and customize it for your own use case!
+
 ⚠️ The current code base contains client-side text hardcoded in French - I'm working on a branding-less and i18n-compliant version. Any help is welcome!
 
 ---
