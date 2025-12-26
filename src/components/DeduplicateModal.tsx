@@ -144,11 +144,21 @@ export const DeduplicateModal: React.FC<DeduplicateModalProps> = ({ isOpen, onCl
                 )}
              </span>
           </div>
+          
+          {previewCount !== null && (previewCount / rowCount) > 0.9 && (
+             <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-start gap-3">
+               <span className="text-xl">🚨</span>
+               <p className="text-[11px] text-red-200 leading-relaxed font-bold">
+                 Attention : Vous allez supprimer plus de 90% de vos données !
+                 <br/><span className="font-normal opacity-80">Vérifiez que vous avez sélectionné assez de colonnes pour définir l'unicité (ex: ID, Date...).</span>
+               </p>
+             </div>
+          )}
 
         </div>
         <div className="p-4 border-t border-surface-active bg-surface-dark flex justify-end gap-3">
           <button onClick={onClose} className="px-4 py-2 rounded-lg text-text-muted font-bold text-xs">ANNULER</button>
-          <button disabled={selectedKeys.length === 0 || isProcessing || previewCount === 0} onClick={handleDedup} className="px-6 py-2 rounded-lg bg-primary hover:bg-primary-dim text-background-dark font-black text-xs shadow-lg flex items-center gap-2 transition-all disabled:opacity-30 disabled:cursor-not-allowed">
+          <button disabled={selectedKeys.length === 0 || isProcessing || previewCount === 0} onClick={handleDedup} className="px-6 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white font-black text-xs shadow-lg flex items-center gap-2 transition-all disabled:opacity-30 disabled:cursor-not-allowed">
             {isProcessing ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
             {previewCount ? `SUPPRIMER ${previewCount}` : 'DÉDOUBLONNER'}
           </button>
