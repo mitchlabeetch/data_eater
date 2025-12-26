@@ -142,9 +142,14 @@ export const detectJaggedRows = async (file: File, delimiter?: string, encoding:
         // If delimiter not provided, sniff it from first line
         const safeDelimiter = delimiter || detectDelimiter(nonEmptyLines[0]);
         
-        // Naive split (doesn't account for quoted delimiters, but fast for jagged check)
-        // TODO: Use a proper regex or parser for quoted strings if critical
-        const getColCount = (line: string) => line.split(safeDelimiter).length;
+        // Robust split handling quoted strings
+        // Matches delimiter only if followed by even number of quotes
+        const getColCount = (line: string) => {
+           // Remove quoted strings to count delimiters safely
+           // This is a heuristic: we just want to know how many delimiters are OUTSIDE quotes
+           const stripped = line.replace(/"[^"]*"/g, '""'); 
+           return stripped.split(safeDelimiter).length;
+        };
         
         const expectedCols = getColCount(nonEmptyLines[0]);
         const errors: JaggedRowError[] = [];

@@ -28,6 +28,28 @@ export const MainframizerModal: React.FC<MainframizerModalProps> = ({ isOpen, on
     }
   }, [isOpen, columns]);
 
+  const [copybookText, setCopybookText] = useState('');
+
+  const handleParseCopybook = () => {
+    // Simple heuristic: extract first word of each line as column name
+    const lines = copybookText.split('\n').filter(l => l.trim().length > 0);
+    const newMappings = { ...mappings };
+    
+    columns.forEach((col, idx) => {
+      if (idx < lines.length) {
+        // Basic extraction: take first token, strip standard Cobol prefixes like '01', '05'
+        let name = lines[idx].trim().split(/\s+/)[0];
+        if (/^\d+$/.test(name) && lines[idx].trim().split(/\s+/).length > 1) {
+           // It was likely a level number (e.g. 05 CUSTOMER-NAME PIC X...), take second word
+           name = lines[idx].trim().split(/\s+/)[1];
+        }
+        // Apply mainframing to the extracted name
+        newMappings[col.name] = mainframize(name);
+      }
+    });
+    setMappings(newMappings);
+  };
+
   const handleApply = async () => {
     setIsProcessing(true);
     try {
@@ -56,6 +78,20 @@ export const MainframizerModal: React.FC<MainframizerModalProps> = ({ isOpen, on
         </div>
         <div className="p-6 space-y-6">
           <p className="text-sm text-text-muted leading-relaxed">Cette opération va renommer toutes vos colonnes pour respecter les contraintes strictes de l'AS400 : <strong className="text-white"> 10 caractères maximum, majuscules, sans caractères spéciaux.</strong></p>
+          
+          <div className="space-y-2 p-3 bg-surface-active/30 rounded-lg border border-border-dark">
+             <div className="flex justify-between items-center">
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-primary">Import Copybook / Définition</h3>
+                <button onClick={handleParseCopybook} disabled={!copybookText} className="text-[10px] bg-primary/10 text-primary px-2 py-1 rounded border border-primary/30 hover:bg-primary/20 disabled:opacity-50 font-bold">APPLIQUER SUR L'ORDRE ACTUEL</button>
+             </div>
+             <textarea 
+               value={copybookText}
+               onChange={(e) => setCopybookText(e.target.value)}
+               placeholder="Collez ici votre définition (ex: 01 CUST-NAME PIC X(10)...) ou liste de noms. L'ordre doit correspondre aux colonnes."
+               className="w-full h-20 bg-background-dark text-xs font-mono text-text-muted p-2 rounded border border-border-dark focus:border-primary outline-none resize-none"
+             />
+          </div>
+
           <div className="space-y-2">
              <h3 className="text-[10px] font-bold uppercase tracking-widest text-subtle px-1">Plan de Renommage</h3>
              <div className="bg-background-dark/50 rounded-xl border border-border-dark max-h-64 overflow-y-auto custom-scrollbar divide-y divide-border-dark/50">

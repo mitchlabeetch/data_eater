@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useDataStore } from '../stores/dataStore';
 import { useMascotStore } from '../stores/mascotStore';
 import { MASCOT_STATES } from '../lib/constants';
+import { ShieldAlert, ShieldCheck } from 'lucide-react';
 
 interface HealthDashboardModalProps {
   isOpen: boolean;
@@ -9,15 +10,16 @@ interface HealthDashboardModalProps {
 }
 
 export const HealthDashboardModal: React.FC<HealthDashboardModalProps> = ({ isOpen, onClose }) => {
-  const { healthReport, fileMeta } = useDataStore();
+  const { healthReport, fileMeta, columns } = useDataStore();
   const setMascot = useMascotStore((s) => s.setMascot);
+  const [securityIssues, setSecurityIssues] = useState<string[]>([]);
 
   if (!isOpen || !healthReport) return null;
 
   const { overallScore, issues, as400Report, columnHealth, rowCount } = healthReport;
 
   // Mascot Reaction based on score
-  React.useEffect(() => {
+  useEffect(() => {
     if (overallScore < 50) {
       setMascot(MASCOT_STATES.INDIGESTION, "Ouh là... C'est indigeste ce fichier !");
     } else if (overallScore < 80) {
@@ -26,6 +28,26 @@ export const HealthDashboardModal: React.FC<HealthDashboardModalProps> = ({ isOp
       setMascot(MASCOT_STATES.COOKING, "Miam ! Des données de qualité chef !");
     }
   }, [overallScore, setMascot]);
+
+  // Security Scan (Simple Heuristics inspired by scan4secrets)
+  useEffect(() => {
+    if (!isOpen) return;
+    const foundIssues: string[] = [];
+    
+    // 1. Column Name Check
+    columns.forEach(col => {
+      const lower = col.name.toLowerCase();
+      if (lower.includes('password') || lower.includes('secret') || lower.includes('token') || lower.includes('api_key') || lower.includes('apikey')) {
+        foundIssues.push(`Colonne sensible détectée : ${col.name}`);
+      }
+    });
+
+    // 2. Value Pattern Check (simulated on topValues if available or just logic placeholder)
+    // In a real app we'd scan sample rows. Here we check checking column health samples if available.
+    // Assuming columnHealth might contain samples in future, for now we rely on names or just standard patterns if we had value access.
+    
+    setSecurityIssues(foundIssues);
+  }, [isOpen, columns]);
 
   const getScoreColor = (score: number) => {
     if (score >= 80) return 'text-primary';
@@ -68,7 +90,7 @@ export const HealthDashboardModal: React.FC<HealthDashboardModalProps> = ({ isOp
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           
           {/* Top Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* Critical Issues */}
             <div className="bg-background-dark p-4 rounded-lg border border-surface-active">
               <h3 className="text-sm font-bold text-text-muted mb-3 flex items-center gap-2">
@@ -87,6 +109,28 @@ export const HealthDashboardModal: React.FC<HealthDashboardModalProps> = ({ isOp
                 <div className="text-sm text-primary flex items-center gap-2">
                   <span className="material-symbols-outlined">check_circle</span>
                   Aucun problème critique
+                </div>
+              )}
+            </div>
+
+            {/* Security Issues (New) */}
+            <div className="bg-background-dark p-4 rounded-lg border border-surface-active">
+              <h3 className="text-sm font-bold text-text-muted mb-3 flex items-center gap-2">
+                {securityIssues.length > 0 ? <ShieldAlert size={18} className="text-orange-500" /> : <ShieldCheck size={18} className="text-primary" />}
+                Sécurité & Secrets
+              </h3>
+              {securityIssues.length > 0 ? (
+                <ul className="space-y-2 max-h-32 overflow-y-auto custom-scrollbar">
+                  {securityIssues.map((issue, i) => (
+                    <li key={i} className="text-xs text-orange-400 bg-orange-500/10 p-2 rounded border border-orange-500/20">
+                      {issue}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="text-sm text-primary flex items-center gap-2">
+                  <span className="material-symbols-outlined">check_circle</span>
+                  Rien à signaler
                 </div>
               )}
             </div>

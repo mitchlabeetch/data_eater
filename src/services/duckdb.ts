@@ -62,21 +62,14 @@ export const registerFile = async (file: File): Promise<string> => {
       
       if (!worksheet) throw new Error("Excel file is empty or has no sheets");
 
-      // Convert to CSV String
-      const rows: string[] = [];
-      worksheet.eachRow((row, _rowNumber) => {
-        const rowValues = (row.values as any[]).slice(1);
-        const csvLine = rowValues.map(v => {
-          if (v === null || v === undefined) return '';
-          const str = String(v).replace(/"/g, '""');
-          return `"${str}"`;
-        }).join(',');
-        rows.push(csvLine);
-      });
+      // Use ExcelJS native buffer write (much more memory efficient)
+      const csvBuffer = await workbook.csv.writeBuffer();
+      const blob = new Blob([csvBuffer], { type: 'text/csv' });
       
-      const csvContent = rows.join('\n');
       const tempName = `converted_${file.name.replace(/\s/g, '_')}.csv`;
-      await db.registerFileText(tempName, csvContent);
+      
+      // Register the Blob directly, avoiding string allocation
+      await db.registerFileHandle(tempName, blob, duckdb.DuckDBDataProtocol.BROWSER_FILEREADER, true);
       return tempName;
     } else {
       await db.registerFileHandle(file.name, file, duckdb.DuckDBDataProtocol.BROWSER_FILEREADER, true);
@@ -110,19 +103,24 @@ export const ingestCSV = async (file: File) => {
         }
 
         const encodingParam = encoding === 'WINDOWS-1252' ? ", encoding='latin-1'" : "";
-        const sql = `
-            CREATE TABLE ${tableName} AS 
-            SELECT * FROM read_csv('${fileNameToLoad}', 
+        const readCsvSql = `read_csv('${fileNameToLoad}', 
                 header=true,
                 delim='${delimiter}',
                 normalize_names=true,
                 ignore_errors=true
                 ${encodingParam}
-            )
-        `;
-        
-        console.log("Executing Ingestion SQL:", sql);
-        await conn.query(sql);
+            )`;
+
+        try {
+            console.log("Attempting to materialize table into memory...");
+            await conn.query(`CREATE TABLE ${tableName} AS SELECT * FROM ${readCsvSql}`);
+        } catch (e) {
+            console.warn("Memory limit exceeded or creation failed. Falling back to ZERO-COPY VIEW mode.", e);
+            // Fallback: Create a View (Zero-Copy)
+            // This reads directly from the file handle on every query. Slower, but infinite scale.
+            await conn.query(`DROP TABLE IF EXISTS ${tableName}`); // Cleanup partial
+            await conn.query(`CREATE VIEW ${tableName} AS SELECT * FROM ${readCsvSql}`);
+        }
     }
     
     // Get Schema

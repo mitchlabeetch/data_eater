@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useDataStore } from '../stores/dataStore';
 import { query } from '../services/duckdb';
 import { Sparkles, X, Loader2, CheckCircle2, ChevronRight } from 'lucide-react';
-import fuzzysort from 'fuzzysort';
 
 interface Cluster {
   canonical: string;
@@ -30,30 +29,58 @@ export const FuzzyGroupModal: React.FC<FuzzyGroupModalProps> = ({ isOpen, onClos
     if (!selectedColumn) return;
     setIsAnalyzing(true);
     try {
-      const res = await query(`SELECT DISTINCT "${selectedColumn}" as val FROM current_dataset WHERE "${selectedColumn}" IS NOT NULL`);
-      const values = res.map(r => String(r.val));
-      const foundClusters: Cluster[] = [];
-      const processed = new Set<string>();
-      const limitValues = values.slice(0, 500);
-      for (let i = 0; i < limitValues.length; i++) {
-        const val = limitValues[i];
-        if (processed.has(val)) continue;
-        const members = [val];
-        processed.add(val);
-        for (let j = i + 1; j < limitValues.length; j++) {
-          const other = limitValues[j];
-          if (processed.has(other)) continue;
-          const result = fuzzysort.single(val, other);
-          if (result && result.score > -20) {
-             members.push(other);
-             processed.add(other);
-          }
+      // Use DuckDB Levenshtein for MUCH faster and smarter clustering in WASM
+      // Limit to top 1000 distinct values to prevent browser hang on huge datasets (O(N^2))
+      const sql = `
+        WITH keys AS (
+          SELECT DISTINCT "${selectedColumn}" as val 
+          FROM current_dataset 
+          WHERE "${selectedColumn}" IS NOT NULL 
+          LIMIT 1000
+        )
+        SELECT k1.val as v1, k2.val as v2 
+        FROM keys k1, keys k2 
+        WHERE k1.val < k2.val 
+        AND levenshtein(k1.val, k2.val) BETWEEN 1 AND 3
+      `;
+      
+      const res = await query(sql);
+      
+      // Group results into clusters
+      const groups = new Map<string, Set<string>>();
+      
+      res.forEach((row: any) => {
+        const v1 = String(row.v1);
+        const v2 = String(row.v2);
+        
+        // Simple Union-Find-like grouping
+        let foundKey = v1;
+        for (const [key, set] of groups.entries()) {
+           if (set.has(v1) || set.has(v2)) {
+             foundKey = key;
+             break;
+           }
         }
-        if (members.length > 1) {
-          foundClusters.push({ canonical: val, members });
+        
+        if (!groups.has(foundKey)) {
+          groups.set(foundKey, new Set([foundKey]));
         }
-      }
-      setClusters(foundClusters);
+        groups.get(foundKey)?.add(v1);
+        groups.get(foundKey)?.add(v2);
+      });
+
+      const foundClusters: Cluster[] = Array.from(groups.entries()).map(([key, set]) => ({
+        canonical: key, // Default to one of them
+        members: Array.from(set).filter(m => m !== key) // Members excluding canonical (for display, adjusted below)
+      }));
+      
+      // Fix structure for UI (Canonical + all members)
+      const uiClusters = foundClusters.map(c => ({
+         canonical: c.canonical,
+         members: [c.canonical, ...c.members].sort()
+      }));
+
+      setClusters(uiClusters);
     } catch (e) {
       console.error(e);
     } finally {

@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useState, useMemo } from "react";
 import Sidebar from "./components/Sidebar";
 import Toolbox from "./components/Toolbox";
 import ExportModal from "./components/ExportModal";
@@ -33,8 +33,10 @@ import { useViewStore } from "./stores/viewStore";
 import { useMascotStore } from "./stores/mascotStore";
 import { MASCOT_STATES } from "./lib/constants";
 import { useDropzone } from 'react-dropzone';
-import { Upload, Search, Filter, Save, FileOutput, Shield, Loader2, ArrowDownUp, LogOut, Terminal, Map as MapIcon, LayoutGrid } from "lucide-react";
+import { Upload, Search, Filter, Save, FileOutput, Shield, Loader2, LogOut, Terminal, Map as MapIcon, LayoutGrid, Zap } from "lucide-react";
 import clsx from "clsx";
+import "@glideapps/glide-data-grid/dist/index.css";
+import { DataEditor, GridCell, GridCellKind, GridColumn, Item, Theme } from "@glideapps/glide-data-grid";
 
 function App() {
   const { 
@@ -50,11 +52,9 @@ function App() {
     selectColumn,
     searchQuery,
     setSearchQuery,
-    sortConfig,
     setSort,
     hasUnsavedChanges,
     resetData,
-    healthReport,
     restoreSession
   } = useDataStore();
   const { openFilter, isNormalizationOpen, closeNormalization } = useViewStore();
@@ -146,23 +146,78 @@ function App() {
     noClick: !!fileMeta 
   });
 
-  const getColumnColor = (type: string) => {
-    const t = type.toUpperCase();
-    if (t.includes('INT') || t.includes('DOUBLE') || t.includes('DECIMAL')) return 'bg-emerald-500/5 hover:bg-emerald-500/10';
-    if (t.includes('DATE') || t.includes('TIMESTAMP')) return 'bg-purple-500/5 hover:bg-purple-500/10';
-    if (t.includes('BOOL')) return 'bg-yellow-500/5 hover:bg-yellow-500/10';
-    return 'bg-blue-500/5 hover:bg-blue-500/10'; 
-  };
-  
-  const getTypeBadgeColor = (type: string) => {
-    const t = type.toUpperCase();
-    if (t.includes('INT') || t.includes('DOUBLE')) return 'text-emerald-400 bg-emerald-400/10';
-    if (t.includes('DATE') || t.includes('TIMESTAMP')) return 'text-purple-400 bg-purple-400/10';
-    if (t.includes('BOOL')) return 'text-yellow-400 bg-yellow-400/10';
-    return 'text-blue-400 bg-blue-400/10';
+  const hasGeo = columns.some(c => /lat|lon|longitude|latitude/i.test(c.name));
+
+  // Glide Data Grid Setup
+  const gridColumns: GridColumn[] = useMemo(() => columns.map(c => ({
+    title: c.name,
+    id: c.name,
+    width: 150
+  })), [columns]);
+
+  const getCellContent = useCallback((cell: Item): GridCell => {
+    const [col, row] = cell;
+    const colDef = columns[col];
+    const rowData = rows[row];
+    const data = rowData ? rowData[colDef.name] : undefined;
+
+    if (colDef.type.includes('INT') || colDef.type.includes('DOUBLE') || colDef.type.includes('DECIMAL')) {
+      return {
+        kind: GridCellKind.Number,
+        allowOverlay: true,
+        data: data !== null && data !== undefined ? Number(data) : undefined,
+        displayData: data !== null && data !== undefined ? String(data) : "",
+      };
+    } else if (colDef.type.includes('BOOL')) {
+       return {
+         kind: GridCellKind.Boolean,
+         allowOverlay: false,
+         data: Boolean(data),
+       };
+    } else {
+      return {
+        kind: GridCellKind.Text,
+        allowOverlay: true,
+        data: data !== null && data !== undefined ? String(data) : "",
+        displayData: data !== null && data !== undefined ? String(data) : "",
+      };
+    }
+  }, [columns, rows]);
+
+  const theme: Partial<Theme> = {
+    accentColor: "#39FF14",
+    accentLight: "rgba(57, 255, 20, 0.2)",
+    textDark: "#ffffff",
+    textMedium: "#a0a0a0",
+    textLight: "#606060",
+    textBubble: "#ffffff",
+    bgIconHeader: "#a0a0a0",
+    fgIconHeader: "#ffffff",
+    textHeader: "#a0a0a0",
+    textHeaderSelected: "#ffffff",
+    bgCell: "#1a1a1a",
+    bgCellMedium: "#252525",
+    bgHeader: "#252525",
+    bgHeaderHasFocus: "#333333",
+    bgHeaderHovered: "#333333",
+    bgBubble: "#333333",
+    bgBubbleSelected: "#39FF14",
+    borderColor: "#333333",
+    drilldownBorder: "#39FF14",
+    linkColor: "#39FF14",
+    cellHorizontalPadding: 10,
+    cellVerticalPadding: 10,
+    headerIconSize: 18,
+    baseFontStyle: "12px 'JetBrains Mono', monospace",
+    headerFontStyle: "12px 'JetBrains Mono', monospace",
+    editorFontSize: "13px",
+    lineHeight: 1.4,
   };
 
-  const hasGeo = columns.some(c => /lat|lon|longitude|latitude/i.test(c.name));
+  const handleQuickScan = () => {
+    openModal(() => {}, "Scan rapide (QSV style) bientôt disponible !");
+    // This connects to the qsv/xan inspiration
+  };
 
   return (
     <div className="h-screen w-screen flex flex-col bg-background-dark text-white overflow-hidden font-display">
@@ -173,7 +228,7 @@ function App() {
           </div>
           <div>
             <h1 className="text-lg font-black tracking-tight flex items-center gap-2">
-              DATA EATER <span className="text-[10px] font-normal text-text-muted border border-border-dark px-2 py-0.5 rounded-full">v1.4</span>
+              DATA EATER <span className="text-[10px] font-normal text-text-muted border border-border-dark px-2 py-0.5 rounded-full">v1.5</span>
             </h1>
           </div>
           {fileMeta && (
@@ -187,6 +242,16 @@ function App() {
           )}
         </div>
         <div className="flex items-center gap-3">
+          {fileMeta && (
+             <button
+                onClick={handleQuickScan}
+                className="flex items-center gap-2 px-3 h-9 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-sm font-bold transition-all border border-primary/30"
+                title="Scan Rapide (Inspiré par qsv)"
+             >
+                <Zap size={16} />
+                Quick Scan
+             </button>
+          )}
           <button 
             onClick={() => openModal(setIsExportOpen, "Préparation de l'export...")}
             className="flex items-center gap-2 px-4 h-9 bg-border-dark hover:bg-surface-active rounded-lg text-sm font-bold transition-all border border-transparent hover:border-text-muted"
@@ -304,54 +369,27 @@ function App() {
                 <div className={clsx("absolute inset-0 border-2 border-dashed rounded-3xl transition-colors duration-300", isDragActive ? "border-primary shadow-[inset_0_0_40px_rgba(19,236,91,0.1)]" : "border-border-dark")} />
               </div>
             ) : (
-              <div className="flex-1 flex flex-col overflow-hidden">
-                <div className="overflow-x-auto overflow-y-hidden bg-surface-active shadow-md shrink-0 border-b border-border-dark">
-                  <table className="w-full text-left border-collapse table-fixed min-w-full">
-                    <thead className="bg-surface-active text-text-muted text-xs uppercase font-medium">
-                      <tr>
-                        <th className="w-12 h-12 flex items-center justify-center border-r border-border-dark shrink-0 sticky left-0 bg-surface-active z-20">#</th>
-                        {columns.map((col) => {
-                          const isSelected = selectedColumn === col.name;
-                          const sort = sortConfig?.column === col.name ? sortConfig.direction : null;
-                          const health = healthReport?.columnHealth[col.name];
-                          return (
-                            <th key={col.name} className={clsx("px-3 py-2 border-r border-border-dark font-semibold tracking-wider whitespace-nowrap cursor-pointer transition-colors group select-none relative h-12", isSelected ? "bg-primary/20 text-white border-b-primary border-b-2" : getColumnColor(col.type))} style={{ minWidth: '200px' }}>
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="truncate" onClick={() => selectColumn(isSelected ? null : col.name)}>{col.name}</span>
-                                <span className={clsx("text-[10px] px-1.5 py-0.5 rounded transition-colors font-mono shrink-0", getTypeBadgeColor(col.type))}>{col.type}</span>
-                                <button onClick={(e) => { e.stopPropagation(); setSort(col.name); }} className={clsx("p-1 rounded hover:bg-white/10 transition-all", sort ? "text-primary opacity-100" : "text-subtle opacity-0 group-hover:opacity-100")}><ArrowDownUp size={12} className={clsx(sort === 'DESC' && "rotate-180")} /></button>
-                              </div>
-                              {health && (
-                                <div className="w-full h-1 bg-background-dark/50 rounded-full overflow-hidden flex shrink-0" title={`${health.nullPercent.toFixed(1)}% vide`}>
-                                  <div className={clsx("h-full transition-all duration-500", health.nullPercent > 50 ? "bg-red-500" : health.nullPercent > 5 ? "bg-yellow-500" : "bg-primary")} style={{ width: `${100 - health.nullPercent}%` }} />
-                                </div>
-                              )}
-                            </th>
-                          );
-                        })}
-                      </tr>
-                    </thead>
-                  </table>
-                </div>
-                <div className="flex-1 overflow-auto custom-scrollbar bg-background-dark/20 text-sm font-mono text-gray-300">
-                   <table className="w-full text-left border-collapse table-fixed min-w-full">
-                      <tbody>
-                        {rows.slice(0, 100).map((row, idx) => (
-                          <tr key={idx} className="hover:bg-surface-dark/50 transition-colors border-b border-border-dark">
-                            <td className="w-12 p-3 text-center text-subtle text-xs border-r border-border-dark bg-background-dark/30 sticky left-0 z-10">{idx + 1}</td>
-                            {columns.map((col) => {
-                              const isSelected = selectedColumn === col.name;
-                              return (
-                                <td key={col.name + idx} className={clsx("px-3 py-2 truncate border-r border-transparent", isSelected ? "bg-primary/5 border-r-primary/10" : getColumnColor(col.type))} style={{ width: '200px' }} title={String(row[col.name])}>
-                                  {String(row[col.name])}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        ))}
-                      </tbody>
-                   </table>
-                </div>
+              <div className="flex-1 overflow-hidden relative" style={{ isolation: 'isolate' }}>
+                <DataEditor
+                  theme={theme}
+                  columns={gridColumns}
+                  rows={rows.length}
+                  getCellContent={getCellContent}
+                  onHeaderClicked={(col) => {
+                    const c = gridColumns[col];
+                    if (c) {
+                      selectColumn(c.title);
+                      setSort(c.title);
+                    }
+                  }}
+                  gridSelection={undefined}
+                  onGridSelectionChange={() => {}}
+                  smoothScrollX
+                  smoothScrollY
+                  verticalBorder={false}
+                  width="100%"
+                  height="100%"
+                />
               </div>
             )}
           </div>

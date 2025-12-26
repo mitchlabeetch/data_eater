@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useDataStore } from '../stores/dataStore';
 import { query } from '../services/duckdb';
-import { CopyX, X, Loader2, CheckCircle2 } from 'lucide-react';
+import { CopyX, X, Loader2, CheckCircle2, CheckSquare, Square } from 'lucide-react';
 import clsx from 'clsx';
 
 interface DeduplicateModalProps {
@@ -10,10 +10,34 @@ interface DeduplicateModalProps {
 }
 
 export const DeduplicateModal: React.FC<DeduplicateModalProps> = ({ isOpen, onClose }) => {
-  const { columns, executeMutation } = useDataStore();
+  const { columns, executeMutation, rowCount } = useDataStore();
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [strategy, setStrategy] = useState<'FIRST' | 'LAST'>('FIRST');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [previewCount, setPreviewCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    const fetchPreview = async () => {
+      if (selectedKeys.length === 0) {
+        setPreviewCount(null);
+        return;
+      }
+      try {
+        const cols = selectedKeys.map(k => `"${k}"`).join(', ');
+        // Count total rows minus distinct combinations of selected columns
+        const sql = `
+          SELECT (SELECT count(*) FROM current_dataset) - 
+                 (SELECT count(*) FROM (SELECT DISTINCT ${cols} FROM current_dataset)) as removed_count
+        `;
+        const res = await query(sql);
+        setPreviewCount(Number(res[0].removed_count));
+      } catch (e) {
+        console.error("Preview Dedup Error", e);
+      }
+    };
+    const timeout = setTimeout(fetchPreview, 300); // Debounce
+    return () => clearTimeout(timeout);
+  }, [selectedKeys]);
 
   const handleDedup = async () => {
     if (selectedKeys.length === 0) return;
@@ -39,6 +63,9 @@ export const DeduplicateModal: React.FC<DeduplicateModalProps> = ({ isOpen, onCl
     setSelectedKeys(prev => prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]);
   };
 
+  const selectAll = () => setSelectedKeys(columns.map(c => c.name));
+  const selectNone = () => setSelectedKeys([]);
+
   if (!isOpen) return null;
 
   return (
@@ -50,7 +77,13 @@ export const DeduplicateModal: React.FC<DeduplicateModalProps> = ({ isOpen, onCl
         </div>
         <div className="p-6 space-y-6">
           <div className="space-y-3">
-            <label className="text-[10px] font-black uppercase tracking-widest text-text-muted">1. Colonnes à vérifier (Unicité)</label>
+            <div className="flex justify-between items-end">
+                <label className="text-[10px] font-black uppercase tracking-widest text-text-muted">1. Colonnes à vérifier (Unicité)</label>
+                <div className="flex gap-2">
+                    <button onClick={selectAll} className="text-[10px] flex items-center gap-1 text-primary hover:text-white transition-colors"><CheckSquare size={12}/> Tout Cocher</button>
+                    <button onClick={selectNone} className="text-[10px] flex items-center gap-1 text-text-muted hover:text-white transition-colors"><Square size={12}/> Tout Décocher</button>
+                </div>
+            </div>
             <p className="text-[11px] text-text-muted italic">Si ces colonnes sont identiques, la ligne est considérée comme un doublon.</p>
             <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto p-1 custom-scrollbar">
               {columns.map(c => (
@@ -71,10 +104,25 @@ export const DeduplicateModal: React.FC<DeduplicateModalProps> = ({ isOpen, onCl
               </button>
             </div>
           </div>
+          
+          <div className="bg-surface-active/50 rounded-lg p-3 border border-border-dark flex items-center justify-between">
+             <span className="text-xs font-medium text-text-muted">Estimation suppression :</span>
+             <span className={clsx("text-sm font-black mono", previewCount && previewCount > 0 ? "text-red-400" : "text-emerald-400")}>
+                {previewCount !== null ? (
+                    <>{previewCount.toLocaleString()} ligne{previewCount > 1 ? 's' : ''} ({((previewCount / rowCount) * 100).toFixed(1)}%)</>
+                ) : (
+                    "Sélectionnez des colonnes..."
+                )}
+             </span>
+          </div>
+
         </div>
         <div className="p-4 border-t border-surface-active bg-surface-dark flex justify-end gap-3">
           <button onClick={onClose} className="px-4 py-2 rounded-lg text-text-muted font-bold text-xs">ANNULER</button>
-          <button disabled={selectedKeys.length === 0 || isProcessing} onClick={handleDedup} className="px-6 py-2 rounded-lg bg-primary hover:bg-primary-dim text-background-dark font-black text-xs shadow-lg flex items-center gap-2 transition-all disabled:opacity-30">{isProcessing ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}DÉDOUBLONNER</button>
+          <button disabled={selectedKeys.length === 0 || isProcessing || previewCount === 0} onClick={handleDedup} className="px-6 py-2 rounded-lg bg-primary hover:bg-primary-dim text-background-dark font-black text-xs shadow-lg flex items-center gap-2 transition-all disabled:opacity-30 disabled:cursor-not-allowed">
+            {isProcessing ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+            {previewCount ? `SUPPRIMER ${previewCount}` : 'DÉDOUBLONNER'}
+          </button>
         </div>
       </div>
     </div>

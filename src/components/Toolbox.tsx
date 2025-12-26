@@ -123,6 +123,7 @@ const Toolbox: React.FC<ToolboxProps> = ({
           <ToolButton icon={<Mail size={14} />} label="Valider Emails" subtitle="Extraction & Check" onClick={onOpenEmail} disabled={!selectedColumn} />
           <ToolButton icon={<Banknote size={14} />} label="Normaliser Monnaie" subtitle="Conversion numérique" onClick={onOpenCurrency} disabled={!selectedColumn} />
           <ToolButton icon={<Ruler size={14} />} label="Convertir Unités" subtitle="Metric / Imperial" onClick={onOpenUnit} disabled={!selectedColumn} />
+          <ToolButton icon={<ShieldCheck size={14} />} label="Anonymiser (PII)" subtitle="Remplacer par *****" onClick={() => executeMutation(`UPDATE current_dataset SET "${selectedColumn}" = '*****'`, `Anonymisation de ${selectedColumn}`)} disabled={!selectedColumn} />
         </div>
         <div className="space-y-2">
           <h4 className="text-[10px] font-bold uppercase tracking-wider text-subtle ml-1">Intelligence</h4>

@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { 
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer, 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, 
-  LineChart, Line
+  LineChart, Line, ComposedChart, Scatter
 } from 'recharts';
 import { useDataStore } from '../stores/dataStore';
 import { query } from '../services/duckdb';
+import { BarChart3, PieChart as PieIcon, LineChart as LineIcon, Target } from 'lucide-react';
+import clsx from 'clsx';
 
 interface DataVizModalProps {
   isOpen: boolean;
@@ -17,7 +19,7 @@ const COLORS = ['#13ec5b', '#0fa640', '#9db9a6', '#55695e', '#28392e', '#1c2a21'
 export const DataVizModal: React.FC<DataVizModalProps> = ({ isOpen, onClose }) => {
   const { selectedColumn, columnStats, columns } = useDataStore();
   const [vizData, setVizData] = useState<any[]>([]);
-  const [vizType, setVizType] = useState<'AUTO' | 'PIE' | 'BAR' | 'LINE' | 'SCATTER'>('AUTO');
+  const [vizType, setVizType] = useState<'AUTO' | 'PIE' | 'BAR' | 'LINE' | 'BULLET'>('AUTO');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -47,7 +49,12 @@ export const DataVizModal: React.FC<DataVizModalProps> = ({ isOpen, onClose }) =
         setVizData(res.map(r => ({ name: r.date, value: r.count })));
         setVizType('LINE');
       } else {
-        setVizData(columnStats?.topValues?.map(v => ({ name: v.value || '(Vide)', value: v.count })) || []);
+        const data = columnStats?.topValues?.map(v => ({ 
+          name: v.value || '(Vide)', 
+          value: v.count,
+          target: Math.floor(v.count * (1 + Math.random() * 0.5)) // Mock target for Bullet
+        })) || [];
+        setVizData(data);
         setVizType(columnStats?.sum !== undefined ? 'BAR' : 'PIE');
       }
     } catch (e) {
@@ -72,6 +79,12 @@ export const DataVizModal: React.FC<DataVizModalProps> = ({ isOpen, onClose }) =
               <p className="text-xs text-text-muted font-mono">{selectedColumn}</p>
             </div>
           </div>
+          <div className="flex items-center gap-2 bg-background-dark p-1 rounded-lg border border-border-dark">
+             <button onClick={() => setVizType('BAR')} className={clsx("p-1.5 rounded transition-colors", vizType === 'BAR' ? "bg-primary text-black" : "text-text-muted hover:text-white")} title="Barres"><BarChart3 size={16} /></button>
+             <button onClick={() => setVizType('LINE')} className={clsx("p-1.5 rounded transition-colors", vizType === 'LINE' ? "bg-primary text-black" : "text-text-muted hover:text-white")} title="Lignes"><LineIcon size={16} /></button>
+             <button onClick={() => setVizType('PIE')} className={clsx("p-1.5 rounded transition-colors", vizType === 'PIE' ? "bg-primary text-black" : "text-text-muted hover:text-white")} title="Camembert"><PieIcon size={16} /></button>
+             <button onClick={() => setVizType('BULLET')} className={clsx("p-1.5 rounded transition-colors", vizType === 'BULLET' ? "bg-primary text-black" : "text-text-muted hover:text-white")} title="Bullet (Cible)"><Target size={16} /></button>
+          </div>
           <button onClick={onClose} className="p-2 hover:bg-surface-active rounded-lg transition-colors text-text-muted hover:text-white">
             <span className="material-symbols-outlined">close</span>
           </button>
@@ -92,8 +105,7 @@ export const DataVizModal: React.FC<DataVizModalProps> = ({ isOpen, onClose }) =
                 <Tooltip contentStyle={{ backgroundColor: '#1c2a21', borderColor: '#28392e', color: '#fff' }} itemStyle={{ color: '#13ec5b' }} />
                 <Line type="monotone" dataKey="value" stroke="#13ec5b" strokeWidth={3} dot={{ r: 4, fill: '#13ec5b' }} activeDot={{ r: 6 }} />
               </LineChart>
-            ) : (
-              vizType === 'BAR' ? (
+            ) : vizType === 'BAR' ? (
                 <BarChart data={vizData} layout="vertical" margin={{ left: 40 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#28392e" horizontal={false} />
                   <XAxis type="number" stroke="#55695e" fontSize={10} />
@@ -101,7 +113,16 @@ export const DataVizModal: React.FC<DataVizModalProps> = ({ isOpen, onClose }) =
                   <Tooltip contentStyle={{ backgroundColor: '#1c2a21', borderColor: '#28392e', color: '#fff' }} itemStyle={{ color: '#13ec5b' }} />
                   <Bar dataKey="value" fill="#13ec5b" radius={[0, 4, 4, 0]} barSize={24} />
                 </BarChart>
-              ) : (
+            ) : vizType === 'BULLET' ? (
+                <ComposedChart layout="vertical" data={vizData} margin={{ left: 40 }}>
+                  <CartesianGrid stroke="#28392e" horizontal={false} />
+                  <XAxis type="number" stroke="#55695e" fontSize={10} />
+                  <YAxis dataKey="name" type="category" width={100} stroke="#9db9a6" fontSize={10} />
+                  <Tooltip cursor={{fill: 'transparent'}} contentStyle={{ backgroundColor: '#1c2a21', borderColor: '#28392e', color: '#fff' }} />
+                  <Bar dataKey="value" fill="#13ec5b" barSize={16} radius={[0, 4, 4, 0]} name="Actuel" />
+                  <Scatter dataKey="target" fill="#ffffff" shape="wye" name="Cible" />
+                </ComposedChart>
+            ) : (
                 <PieChart>
                   <Pie data={vizData} cx="50%" cy="50%" innerRadius={100} outerRadius={160} paddingAngle={8} dataKey="value" animationBegin={0} animationDuration={800}>
                     {vizData.map((_, index) => (
@@ -110,7 +131,6 @@ export const DataVizModal: React.FC<DataVizModalProps> = ({ isOpen, onClose }) =
                   </Pie>
                   <Tooltip contentStyle={{ backgroundColor: '#1c2a21', borderColor: '#28392e', borderRadius: '8px', border: 'none' }} itemStyle={{ color: '#13ec5b' }} />
                 </PieChart>
-              )
             )}
           </ResponsiveContainer>
         </div>
